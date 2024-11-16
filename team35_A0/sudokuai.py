@@ -3,217 +3,129 @@
 #  https://www.gnu.org/licenses/gpl-3.0.txt)
 
 import random
-import copy
 import time
+import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 
 class NodeGameState(GameState):
-
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
         self.__dict__ = game_state.__dict__.copy()
-        self.game_board = self.make_matrix(game_state)
         self.root_move = root_move
         self.last_move = last_move
         self.my_player = my_player
 
-    def make_matrix(self, game_state):
-        game_board = str(game_state.board)[4:]
-        game_board = [line.strip().split() for line in game_board.strip().split("\n")]
-        game_board = [[int(cell) if cell.isdigit() else 0 for cell in row] for row in game_board]
-        return game_board
-
-    ####### MISS NOG ANDERE FUNCTIE MAKEN OM MATRIX TE BOUWEN ZONDER DE PRINT STATEMENT ############
-    # def make_matrix2(self, game_state):
-    #     valid_moves = set(game_state.moves) - set(game_state.taboo_moves)
-    #     game_board = [[0 for _ in range(game_state.board.N)] for _ in range(game_state.board.N)]
-    #     for val_move in valid_moves:
-    #         x, y = val_move.square
-    #         value = val_move.value
-    #         game_board[x][y] = value
-    #     return game_board
-
-
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
-    """
-    Sudoku AI that computes a move for a given sudoku configuration.
-    """
-
     def __init__(self):
         super().__init__()
-    # Example evaluation function
+
     def evaluate(self, node):
         # Replace with your domain-specific evaluation logic
-        return node.scores[node.my_player - 1] - node.scores[node.my_player - 1]
+        return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
+    def is_terminal(self, node):
+        N = node.board.N
+        # A node is terminal if no children (valid moves) exist
+        return len(node.occupied_squares1) + len(node.occupied_squares2) == N*N
+
+    def respects_rule_C0(self, node, row, col, value):
+        board = node.board
+        N = node.board.N  # Size of the grid (N = n * m)
+        n, m = node.board.n, node.board.m  # Block dimensions
+        # Check the row
+        for c in range(N):
+            if board.get((row, c)) == value:  # Assuming `board.get(r, c)` retrieves the value at (r, c)
+                return False
+
+        # Check the column
+        for r in range(N):
+            if board.get((r, col)) == value:
+                return False
+
+        # Check the block
+        block_start_row = (row // n) * n
+        block_start_col = (col // m) * m
+        for r in range(block_start_row, block_start_row + n):
+            for c in range(block_start_col, block_start_col + m):
+                if board.get((r, c)) == value:
+                    return False
+        return True
+
+    def playable_square(self, game_state, i, j, value):
+        return game_state.board.get((i, j)) == SudokuBoard.empty \
+            and not TabooMove((i, j), value) in game_state.taboo_moves \
+            and (i, j) in game_state.player_squares()
+
+    def get_all_moves(self, game_state):
+        N = game_state.board.N
+        all_moves = [Move((i, j), value) for i in range(N) for j in range(N)
+                     for value in range(1, N+1) if self.playable_square(game_state, i, j, value) and self.respects_rule_C0(game_state, i, j, value)]
+        return all_moves
 
 
-    def update_score(self, node, move):
-        # Convert the string representation of the board into a 2D list
-        m = node.board.m
-        n = node.board.n
-        row, col = move.square
-        value_move = move.value
-        game_board = node.game_board
-        current_player = node.current_player
-        scores = node.scores
-        game_board[row][col] = value_move  # Update the board with the player's move
+    def calculate_move_score(self, state, move):
+        N = state.board.N  # Size of the grid
+        n, m = state.board.n, state.board.m  # Block dimensions
+        row, col = move.square  # Get the row and column of the move
 
-        # Function to check if all elements in a region are integers
-        # def is_region_complete(cells):
-        #     return all(isinstance(cell, int) for cell in cells)
         def is_region_complete(cells):
-            return all(cell != 0 for cell in cells)
+            values = [state.board.get((r, c)) for r, c in cells]
+            return len(values) == N and len(set(values)) == N  and  all(value != 0 for value in values)
 
-        # Count regions completed
-        regions_completed = 0
+        # Helper to generate cells in a row
+        def get_row_cells(row):
+            return [(row, c) for c in range(N)]
 
-        # Check row
-        if is_region_complete(game_board[row]):
-            regions_completed += 1
+        # Helper to generate cells in a column
+        def get_col_cells(col):
+            return [(r, col) for r in range(N)]
 
-        # Check column
-        if is_region_complete([game_board[i][col] for i in range(len(game_board))]):
-            regions_completed += 1
+        # Helper to generate cells in a block
+        def get_block_cells(block_row, block_col):
+            return [
+                (r, c)
+                for r in range(block_row * n, (block_row + 1) * n)
+                for c in range(block_col * m, (block_col + 1) * m)
+            ]
 
+        # Check if the move completes any regions
+        completed_regions = 0
+        if is_region_complete(get_row_cells(row)):
+            completed_regions += 1
+        if is_region_complete(get_col_cells(col)):
+            completed_regions += 1
+        block_row = row // n
+        block_col = col // m
+        if is_region_complete(get_block_cells(block_row, block_col)):
+            completed_regions += 1
 
-        region_row = (row // m) * m
-        region_col = (col // n) * n
-        region_matrix = []
-        for r in range(region_row, region_row + m):
-            for c in range(region_col, region_col + n):
-                region_matrix.append(game_board[r][c])
-
-        if is_region_complete(region_matrix):
-            regions_completed += 1
-
-        # Scoring rules
-        points_scored = [0, 1, 3, 7][regions_completed]
-
-        # Update player's score
-        scores[current_player - 1] += points_scored
-        return scores
-
-    # def find_allowed_values_for_playable_cells(self, node, target_cells):
-    #     matrix = node.game_board
-    #     m = node.board.m
-    #     n = node.board.n
-    #     N = len(matrix)
-    #     possible_values = {}
-    #     all_numbers = set(range(1, N + 1))
-    #
-    #     for (row, col) in target_cells:
-    #         if matrix[row][col] != 0:
-    #             possible_values[(row, col)] = f"Cell already filled with {matrix[row][col]}"
-    #             continue
-    #
-    #         # Numbers in the same row
-    #         row_numbers = set()
-    #         for num in matrix[row]:
-    #             if num != 0:
-    #                 row_numbers.add(num)
-    #
-    #         # Numbers in the same column
-    #         col_numbers = set()
-    #         for r in range(N):
-    #             if matrix[r][col] != 0:
-    #                 col_numbers.add(matrix[r][col])
-    #
-    #
-    #         # Determine the region
-    #         region_row = (row // m) * m
-    #         region_col = (col // n) * n
-    #         region_numbers = set()
-    #         for r in range(region_row, region_row + m):
-    #             for c in range(region_col, region_col + n):
-    #                 if matrix[r][c] != 0:
-    #                     region_numbers.add(matrix[r][c])
-    #
-    #
-    #         # Possible numbers are those not in row, column, or region
-    #         used_numbers = row_numbers.union(col_numbers).union(region_numbers)
-    #         possible = all_numbers - used_numbers
-    #         possible_values[(row, col)] = sorted(possible) if possible else "No possible values"
-    #
-    #     return possible_values
-    def find_allowed_values(self, node, target_cells):
-        matrix = node.game_board
-        m = node.board.m
-        n = node.board.n
-        empty_cell = 0
-        N = len(matrix)
-        possible_values = {}
-        all_numbers = set(range(1, N + 1))
-
-        for (row, col) in target_cells:
-            if matrix[row][col] != empty_cell:
-                continue
-
-            # Numbers present in the same row
-            row_numbers = set(cell for cell in matrix[row] if cell != empty_cell)
-
-            # Numbers present in the same column
-            col_numbers = set(matrix[r][col] for r in range(N) if matrix[r][col] != empty_cell)
-
-            # Determine the region's starting indices
-            region_row_start = (row // m) * m
-            region_col_start = (col // n) * n
-
-            # Numbers present in the same region
-            region_numbers = set()
-            for r in range(region_row_start, region_row_start + m):
-                for c in range(region_col_start, region_col_start + n):
-                    if matrix[r][c] != empty_cell:
-                        region_numbers.add(matrix[r][c])
-
-            # Possible numbers are those not present in row, column, or region
-            used_numbers = row_numbers.union(col_numbers).union(region_numbers)
-            possible = set(all_numbers) - set(used_numbers)
-            if len(possible)>0:
-                possible_values[(row, col)] = sorted(possible)
-        #print(possible_values)
-        return possible_values
+        # Calculate score based on completed regions
+        if completed_regions == 1:
+            return 1  # 1 point for 1 region
+        elif completed_regions == 2:
+            return 3  # 3 points for 2 regions
+        elif completed_regions == 3:
+            return 7  # 7 points for 3 regions
+        else:
+            return 0  # No regions completed
 
 
     def get_children(self, node):
-        N = node.board.N
-        m = node.board.m
-        n = node.board.n
-        # Check whether a cell is empty, a value in that cell is not taboo, and that cell is allowed
-        def playable_cells(i, j):
-            return node.board.get((i, j)) == SudokuBoard.empty and (i, j) in node.player_squares()
-
-        all_playable_cells = [(i, j) for i in range(N) for j in range(N) if playable_cells(i, j)]
-        dict_allowed_value_per_cell = self.find_allowed_values(node, all_playable_cells)
-        all_moves = [Move(key, value) for key in dict_allowed_value_per_cell for value in dict_allowed_value_per_cell[key] if not TabooMove(key, value) in node.taboo_moves]
-
+        all_moves = self.get_all_moves(node)
         all_game_states = []
         for move in all_moves:
-            if node.root_move is None:
-                new_node = copy.deepcopy(node)
-            else:
-                new_node = copy.deepcopy(node)
-                #new_node = node
+            new_node = copy.deepcopy(node)
             new_node.last_move = move
             new_node.board.put(move.square, move.value)
             new_node.moves.append(move)
-            new_node.scores = self.update_score(node, move)
-            # Alternate current player and record moves
+            new_node.scores[new_node.current_player - 1] += self.calculate_move_score(new_node, move)
             if new_node.current_player == 1:
                 new_node.occupied_squares1.append(move.square)
                 new_node.current_player = 2
             else:
                 new_node.occupied_squares2.append(move.square)
                 new_node.current_player = 1
-
             all_game_states.append(new_node)
-
         return all_game_states
-
-    def is_terminal(self, node):
-        N = node.board.N
-        # A node is terminal if no children (valid moves) exist
-        return len(node.occupied_squares1) + len(node.occupied_squares2) == N*N
-
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
         # Base case: If maximum depth is reached or game state is terminal
@@ -239,17 +151,22 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     break  # Alpha-Beta Pruning
             return min_eval
 
-    def compute_best_move(self, game_state):
+    # N.B. This is a very naive implementation.
+    def compute_best_move(self, game_state: GameState) -> None:
         best_move = None
         best_value = float('-inf')
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
-        for depth in range(1, 10):  # Depth-limited iterative deepening
-            children = self.get_children(root_node)
+        children = self.get_children(root_node)
+        for child in children:
+            child.root_move = child.last_move
+        for depth in range(1, 10):
             for child in children:
-                child.root_move = child.last_move
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
                 if move_value > best_value:
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
+
+
+
