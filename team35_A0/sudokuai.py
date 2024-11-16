@@ -42,10 +42,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 return False
 
         # Check the block
-        block_start_row = (row // n) * n
-        block_start_col = (col // m) * m
-        for r in range(block_start_row, block_start_row + n):
-            for c in range(block_start_col, block_start_col + m):
+        block_start_row = (row // m) * m
+        block_start_col = (col // n) * n
+        for r in range(block_start_row, block_start_row + m):
+            for c in range(block_start_col, block_start_col + n):
                 if board.get((r, c)) == value:
                     return False
         return True
@@ -83,8 +83,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         def get_block_cells(block_row, block_col):
             return [
                 (r, c)
-                for r in range(block_row * n, (block_row + 1) * n)
-                for c in range(block_col * m, (block_col + 1) * m)
+                for r in range(block_row * m, (block_row + 1) * m)
+                for c in range(block_col * n, (block_col + 1) * n)
             ]
 
         # Check if the move completes any regions
@@ -93,8 +93,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             completed_regions += 1
         if is_region_complete(get_col_cells(col)):
             completed_regions += 1
-        block_row = row // n
-        block_col = col // m
+        block_row = row // m
+        block_col = col // n
         if is_region_complete(get_block_cells(block_row, block_col)):
             completed_regions += 1
 
@@ -161,12 +161,14 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         for child in children:
             child.root_move = child.last_move
         for depth in range(1, 10):
+            print('depth', depth, '#############################################')
             for child in children:
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
                 if move_value > best_value:
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
+
 
 
 
