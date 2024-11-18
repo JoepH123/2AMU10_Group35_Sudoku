@@ -28,7 +28,7 @@ def evaluate_board(node):
     mobility = calculate_mobility(node)
     region_influence = calculate_region_influence(node, player=node.my_player)
     centrality = calculate_centrality(node)
-    print(15 * score_differential, 5 * mobility, 0.1 * region_influence, 10 * centrality )
+    #print(15 * score_differential, 5 * mobility, 0.1 * region_influence, 10 * centrality )
   
     return 15 * score_differential + 5 * mobility + 0.1 * region_influence + 15 * centrality  
 
