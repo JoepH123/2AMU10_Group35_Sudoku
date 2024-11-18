@@ -7,6 +7,7 @@ import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
+from .Jordseval import evaluate_board
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
@@ -14,6 +15,7 @@ class NodeGameState(GameState):
         self.root_move = root_move
         self.last_move = last_move
         self.my_player = my_player
+        
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     def __init__(self):
@@ -21,7 +23,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
     def evaluate(self, node):
         # Replace with your domain-specific evaluation logic
-        return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
+        return evaluate_board(node)#return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
     def is_terminal(self, node):
         N = node.board.N
         # A node is terminal if no children (valid moves) exist
@@ -168,6 +170,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
+
+
 
 
 
