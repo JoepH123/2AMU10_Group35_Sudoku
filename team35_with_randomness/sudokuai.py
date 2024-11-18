@@ -15,10 +15,10 @@ class SudokuAI(team35_current_best.sudokuai.SudokuAI):
 
     def compute_best_move(self, game_state: GameState) -> None:
         if random.random() < self.proportion_of_random_moves:  # perform random move
-            print("RANDOM MOVE !!!!!!")
+            print("@@ RANDOM MOVE @@")
             self.compute_random_move(game_state)
         else:
-            print("BEST MOVE !!!!!!")
+            print("@@ NORMAL MOVE @@")
             super().compute_best_move(game_state)
 
     def compute_random_move(self, game_state: GameState):
