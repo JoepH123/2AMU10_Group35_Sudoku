@@ -158,8 +158,8 @@ def calc_score_center_moves(node):
     center = (N - 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
 
     def distance_to_center(row, col):
-        row_weight = 0.66  # Weight for row distance (increase this to prioritize rows more)
-        col_weight = 0.33 # Weight for column distance
+        row_weight = 0.9  # Weight for row distance (increase this to prioritize rows more)
+        col_weight = 0.1 # Weight for column distance
         return ((row_weight * (row - center)) ** 2 + (col_weight * (col - center)) ** 2) ** 0.5
 
     def calculate_player_score(occupied_squares):
@@ -285,8 +285,8 @@ def evaluate_node(node):
     score_line = score_partial_uninterrupted_lines(node)
     new = compute_blocking_advantage(node)
 
-    eval_func = score_diff_game + score_one_empty + score_mobility + score_block + new + score_diff_center
-    #print('score_diff: ', score_diff_game, 'new: ', new, 'score_center: ', score_diff_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, 'score block occupation: ',score_block, 'score line: ',score_line,'eval: ' ,eval_func)
+    eval_func = score_diff_game + score_one_empty + score_mobility + score_block + 2*new + score_diff_center
+    print('score_diff: ', score_diff_game, 'new: ', new, 'score_center: ', score_diff_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, 'score block occupation: ',score_block, 'score line: ',score_line,'eval: ' ,eval_func)
     return eval_func
 
 def compute_blocking_advantage(node):
@@ -303,9 +303,10 @@ def compute_blocking_advantage(node):
     start_row = 0 if node.my_player == 1 else N-1
     # Determine the player's half of the board
     if node.my_player == 1:
-        my_half = {(row, col) for row in range((N // 2) + 1) for col in range(N)}
+        my_half = {(row, col) for row in range(node.board.m) for col in range(N)}
     else:
-        my_half = {(row, col) for row in range((N // 2), N) for col in range(N)}
+        my_half = {(row, col) for row in range(N - node.board.m, N) for col in range(N)}
+
 
     if node.my_player == node.current_player:  # If it is our turn
         player_playable_squares = node.player_squares()
@@ -325,9 +326,8 @@ def compute_blocking_advantage(node):
             # Only consider cells on the player's half
             if (row, col) in my_half:
                 # Check if the cell is empty, playable by the player, and not playable by the opponent
-                if (node.board.get((row, col)) == 0 and
-                        (row, col) in player_playable_squares and
-                        (row, col) not in opponent_playable_squares):
+                if (node.board.get((row, col)) == 0 and (row, col) not in opponent_playable_squares): #(row, col) in player_playable_squares and
+
                     score += 1
                     if row == start_row:
                         score+=0
