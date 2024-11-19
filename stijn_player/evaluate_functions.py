@@ -324,8 +324,8 @@ def evaluate_node(node):
     new = compute_blocking_advantage(node)
     wall = score_wall_and_adjacent_moves(node)
 
-    eval_func = score_diff_game + score_mobility + score_center + score_one_empty #+ 2*new
-    #print('score_diff: ', score_diff_game, 'new: ', new, 'score_center: ', score_diff_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, 'score block occupation: ',score_block, 'score T: ',t_score,'eval: ' ,eval_func)
+    eval_func = score_diff_game + score_mobility + score_center + score_one_empty + 2*new
+    print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
     return eval_func
 
 def compute_blocking_advantage(node):
@@ -365,7 +365,7 @@ def compute_blocking_advantage(node):
             # Only consider cells on the player's half
             if (row, col) in my_half:
                 # Check if the cell is empty, playable by the player, and not playable by the opponent
-                if (node.board.get((row, col)) == 0 and (row, col) not in opponent_playable_squares): #(row, col) in player_playable_squares and
+                if (node.board.get((row, col)) == 0 and not (row, col) in opponent_playable_squares): #(row, col) in player_playable_squares and
 
                     score += 1
                     if row == start_row:
