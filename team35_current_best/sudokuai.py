@@ -7,6 +7,11 @@ import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
+try:
+    from .evaluate_functions import evaluate_node
+except:
+    def evaluate_node(node):
+        return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
@@ -19,182 +24,9 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     def __init__(self):
         super().__init__()
 
-
-    def score_one_empty_in_region(self, node):
-
-        my_player = node.my_player
-        N = node.board.N  # Board size (N x N grid)
-        n, m = node.board.n, node.board.m  # Block dimensions
-
-        def get_neighbors(row, col):
-
-            directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1) ]
-            return [
-                (row + dr, col + dc)
-                for dr, dc in directions
-                if 0 <= row + dr < N and 0 <= col + dc < N]
-
-        def empty_cells_in_region(cells):
-
-            return sum(1 for r, c in cells if node.board.get((r, c)) == 0)
-
-        def occupied_neighbors(cells, occupied_squares):
-
-            for r, c in cells:
-                if node.board.get((r, c)) == 0:  # Only check empty cells
-                    for neighbor in get_neighbors(r, c):
-                        if neighbor in occupied_squares:
-                            return True
-            return False
-
-        def get_row_cells(row):
-
-            return [(row, c) for c in range(N)]
-
-        def get_col_cells(col):
-
-            return [(r, col) for r in range(N)]
-
-        def get_block_cells(block_row, block_col):
-
-            return [(r, c)
-                     for r in range(block_row * m, (block_row + 1) * m)
-                     for c in range(block_col * n, (block_col + 1) * n)]
-
-        # Define players' occupied squares
-        player_occupied = (node.occupied_squares1 if node.current_player == 1 else node.occupied_squares2)
-        opponent_occupied = (node.occupied_squares2 if node.current_player == 1 else node.occupied_squares1)
-
-        # Initialize score
-        score_one_empty = 0
-
-        # Check rows, columns, and blocks
-        for i in range(N):
-            # Check rows
-            row_cells = get_row_cells(i)
-            if empty_cells_in_region(row_cells) == 1:
-                if occupied_neighbors(row_cells, opponent_occupied) and occupied_neighbors(row_cells, player_occupied):
-                    score_one_empty += 1
-
-            # Check columns
-            col_cells = get_col_cells(i)
-            if empty_cells_in_region(col_cells) == 1:
-                if occupied_neighbors(col_cells, opponent_occupied) and occupied_neighbors(col_cells, player_occupied):
-                    score_one_empty += 1
-
-        # Check blocks
-        for block_row in range(n):
-            for block_col in range(m):
-                block_cells = get_block_cells(block_row, block_col)
-                if empty_cells_in_region(block_cells) == 1:
-                    if occupied_neighbors(block_cells, opponent_occupied) and occupied_neighbors(block_cells, player_occupied):
-                        score_one_empty += 1
-
-        # Return the score
-        if node.current_player == my_player:
-            return score_one_empty
-        else:
-            return -score_one_empty
-
-    def calc_score_center_moves(self, node):
-
-        N = node.board.N  # Board size (N x N grid)
-        center = (N - 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
-
-        def distance_to_center(row, col):
-            row_weight = 0.666  # Weight for row distance (increase this to prioritize rows more)
-            col_weight = 0.333  # Weight for column distance
-            return ((row_weight * (row - center)) ** 2 + (col_weight * (col - center)) ** 2) ** 0.5
-
-        def calculate_player_score(occupied_squares):
-
-            proximity_score = 0
-            for row, col in occupied_squares:
-                proximity_score += max(0, N - distance_to_center(row, col))  # Reward closer cells
-            return proximity_score / N
-
-        # Get scores for both players based on their occupied squares
-        player1_score = calculate_player_score(node.occupied_squares1)
-        player2_score = calculate_player_score(node.occupied_squares2)
-
-        # Return the evaluation from the perspective of the current player
-        if node.my_player == 1:
-            return player1_score - player2_score
-        else:
-            return player2_score - player1_score
-
-    def evaluate_occupation_in_half(self, node):
-
-        N = node.board.N  # Board size (N x N grid)
-        my_player = node.my_player
-        opponent = 3 - my_player  # The other player (1 or 2)
-
-        # Define halves based on whether N is even or odd
-        if N % 2 == 0:  # Even grid
-            midpoint = N // 2
-            if my_player == 1:
-                my_half = set((row, col) for row in range(midpoint + 1) for col in range(N))
-                opponent_half = set((row, col) for row in range(midpoint, N) for col in range(N))
-
-            else:
-                my_half = set((row, col) for row in range(midpoint - 1, N) for col in range(N))
-                opponent_half = set((row, col) for row in range(midpoint) for col in range(N))
-
-        else:  # Uneven grid
-            midpoint = N // 2
-            if my_player == 1:
-                my_half = set((row, col) for row in range(midpoint + 2) for col in range(N))
-                opponent_half = set((row, col) for row in range(midpoint + 1, N) for col in range(N))
-
-            else:
-                my_half = set((row, col) for row in range(midpoint - 2, N) for col in range(N))
-                opponent_half = set((row, col) for row in range(midpoint) for col in range(N))
-
-        # Get the occupied squares for both players
-        my_occupied = (
-            node.occupied_squares1 if my_player == 1 else node.occupied_squares2
-        )
-        opponent_occupied = (
-            node.occupied_squares2 if my_player == 1 else node.occupied_squares1
-        )
-
-        # Calculate rewards and penalties
-        reward = sum(1 for square in my_occupied if square in opponent_half)
-        penalty = sum(1 for square in opponent_occupied if square in my_half)
-
-        return reward, -penalty
-
-    def evaluate_balance(self, node):
-
-        N = node.board.N  # Board size (N x N grid)
-        half = N // 2  # Midpoint of the board
-
-        # Define players' occupied squares
-        current_player_occupied = (
-            node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2
-        )
-
-        # Count occupied cells in left and right halves
-        left_count = sum(1 for r, c in current_player_occupied if c < half)
-        right_count = sum(1 for r, c in current_player_occupied if c >= half)
-
-        # Calculate balance score
-        balance = 1 - abs(left_count - right_count) / max(1, (left_count + right_count))
-
-        return balance
     def evaluate(self, node):
-        N = node.board.N
-        score_diff_game = node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
-        score_diff_center = self.calc_score_center_moves(node)
-        reward_occupation, penalty_occupation = self.evaluate_occupation_in_half(node)
-        score_one_empty = self.score_one_empty_in_region(node)
-        if N > 4:
-            score_balance = self.evaluate_balance(node)
-        else:
-            score_balance = 0
-        eval_func = score_diff_game + 2*score_diff_center + 0.25*reward_occupation + 0.25*penalty_occupation + score_one_empty + 2*score_balance
-        #print('score_diff: ', score_diff_game, 'score_center: ',1.5*score_diff_center,'reward / penal occu: ', 0.25*reward_occupation, 0.25*penalty_occupation, 'score_one_empty: ', score_one_empty , 'score balance: ',2*score_balance,'eval: ' ,eval_func)
-        return eval_func
+        return evaluate_node(node)
+
     def is_valid_move_possible(self, node):
         board = node.board
         N = board.N  # Size of the grid (N = n * m)
@@ -406,6 +238,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_move = child.root_move
                     self.propose_move(best_move)
             print('depth', depth, 'done','#############################################')
+
 
 
 
