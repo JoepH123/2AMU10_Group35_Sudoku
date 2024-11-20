@@ -25,16 +25,29 @@ def evaluate_node(node):
     score_last_placement_in_region = evaluate_last_placement_in_region(node)
     mobility = positively_evaluate_mobility(node)
     centrality = evaluate_central_control(node)
-    # opp_mobility = negatively_evaluate_opponent_mobility(node)  --> does not seem to work well, keeps all number in the back line
-    # limit_opponent_mobility = 
-    # check if last move completed a region, if this is the case, and the opponent could reach this cell than reward heavily, if opponent could not reach the cell punish heavily
-    # We want to postpone finishing regions if opponent cannot finish it
+    # print('score_diff: ', score_differential * weights[0], 'score_last_cell: ', score_last_placement_in_region * weights[1],  'score_one_empty: ',  score_second_to_last_placement_in_region * weights[2], 'mobility: ', mobility * weights[3], "centrality: ", centrality * weights[4])
+    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4]
 
-    # return score_differential * weights[0] + score_second_to_last_placement_in_region * weights[1] + mobility * weights[2] + centrality * weights[3]
-    return score_differential * 0.2 + score_last_placement_in_region * 0.2 + score_second_to_last_placement_in_region * 0.2 + mobility * 0.2 + centrality * 0.2
-    # return score_differential * weights[0] + mobility * weights[1] + opp_mobility * weights[2] + centrality * weights[3]
-    # return score_differential * weights[0] + centrality * weights[3] + opp_mobility * weights[2]
-    # return opp_mobility
+
+def weights_at_game_stage(node):
+    ''' We want to divide the game into three stages. start (0), mid (1), end (2)'''
+
+    nr_total_squares = node.board.N ** 2
+    nr_empty_squares = nr_total_squares - len(node.occupied_squares1) - len(node.occupied_squares2)
+    proportion_of_empty_cells = nr_empty_squares / nr_total_squares
+
+    if proportion_of_empty_cells >= 0.7:
+        stage = 0
+        weights = 0, 0, 0, 2, 2
+    elif 0.5 < proportion_of_empty_cells < 0.7:
+        stage = 1
+        weights = 1, 1, 1, 3, 1
+    else:  # proportion_of_empty_cells <= 0.3
+        stage = 2
+        weights = 3, 3, 3, 2, 0
+
+    return stage, weights
+
 
 
 def evaluate_last_placement_in_region(node):
@@ -50,11 +63,11 @@ def evaluate_last_placement_in_region(node):
     else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
         score += 8
     
-    return score
-    # if node.current_player == node.my_player:
-    #     return -score
-    # else:
-    #     return score    
+    # return score
+    if node.current_player == node.my_player:
+        return -score
+    else:
+        return score    
     
 
 def find_full_regions_of_cell(node, cell):
@@ -130,12 +143,12 @@ def evaluate_second_to_last_placement_in_region(node):
     # Given that it is our turn, the opponent put the last move. So we are evaluating the move of the opponent
     # If the opponent put a number in the second to last cell of a region, and it is reachable by you, you want 
     # to negatively evaluate this move by the opponent 
-    return score
+    # return score
 
-    # if node.current_player == node.my_player:
-    #     return -score
-    # else:
-    #     return score    
+    if node.current_player == node.my_player:
+        return -score
+    else:
+        return score    
 
 
 def find_last_cells(node, player_squares):
@@ -199,26 +212,6 @@ def is_reachable_by_opponent(node, cell):
     # else:
         # print("not reachable")
     return False
-
-
-def weights_at_game_stage(node):
-    ''' We want to divide the game into three stages. start (0), mid (1), end (2)'''
-
-    nr_total_squares = node.board.N ** 2
-    nr_empty_squares = nr_total_squares - len(node.occupied_squares1) - len(node.occupied_squares2)
-    proportion_of_empty_cells = nr_empty_squares / nr_total_squares
-
-    if proportion_of_empty_cells >= 0.7:
-        stage = 0
-        weights = 0.1, 0.1, 0.4, 0.4
-    elif 0.3 < proportion_of_empty_cells < 0.7:
-        stage = 1
-        weights = 0.1, 0.3, 0.3, 0.3
-    else:  # proportion_of_empty_cells <= 0.3
-        stage = 2
-        weights = 0.4, 0.4, 0.1, 0.1
-
-    return stage, weights
 
 
 def calculate_score_differential(node):
@@ -339,108 +332,3 @@ def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_va
     #     print(row)
 
     return cell_scores
-
-
-# def evaluate_self_connectivity(game_state: GameState) -> float:
-#     """
-#     Evaluates the connectivity of the current player's own accessible squares.
-    
-#     Returns a lower score when the player's accessible squares are fragmented.
-#     """
-#     player_squares = game_state.player_squares()
-    
-#     if not player_squares:
-#         # No moves available; extremely bad state
-#         return -float('inf')
-    
-#     # Build a graph of player's accessible squares
-#     graph = build_accessible_squares_graph(game_state, player_squares)
-    
-#     # Find connected components
-#     connected_components = find_connected_components(graph, player_squares)
-    
-#     # Evaluate fragmentation
-#     num_components = len(connected_components)
-#     largest_component_size = max(len(component) for component in connected_components)
-    
-#     # Lower score for more components and smaller largest component
-#     fragmentation_score = - (num_components * 10 - largest_component_size)
-#     return fragmentation_score
-
-
-# import copy
-# from collections import deque
-
-# def evaluate_opponent_connectivity(game_state: GameState) -> float:
-#     """
-#     Evaluates the degree to which the opponent's allowed squares are fragmented.
-    
-#     Returns a higher score when the opponent's accessible squares are more disconnected.
-#     """
-#     opponent_state = copy.deepcopy(game_state)
-#     opponent_state.current_player = 2 if game_state.current_player == 1 else 1
-#     opponent_squares = opponent_state.player_squares()
-    
-#     if not opponent_squares:
-#         # No moves available to opponent; maximum disconnection
-#         return float('inf')
-    
-#     # Build a graph of opponent's accessible squares
-#     graph = build_accessible_squares_graph(opponent_state, opponent_squares)
-    
-#     # Find connected components
-#     connected_components = find_connected_components(graph, opponent_squares)
-    
-#     # Evaluate fragmentation
-#     num_components = len(connected_components)
-#     largest_component_size = max(len(component) for component in connected_components)
-    
-#     # Higher score for more components and smaller largest component
-#     fragmentation_score = num_components * 10 - largest_component_size
-#     return fragmentation_score
-
-
-# def build_accessible_squares_graph(game_state: GameState, accessible_squares: List[Square]) -> Dict[Square, List[Square]]:
-#     """
-#     Builds a graph where nodes are accessible squares for the opponent, and edges connect adjacent squares.
-#     """
-#     graph = {square: [] for square in accessible_squares}
-#     N = game_state.board.N
-    
-#     for square in accessible_squares:
-#         row, col = square
-#         # Check all adjacent squares (orthogonally and diagonally)
-#         for dr in (-1, 0, 1):
-#             for dc in (-1, 0, 1):
-#                 if dr == 0 and dc == 0:
-#                     continue
-#                 r, c = row + dr, col + dc
-#                 neighbor = (r, c)
-#                 if 0 <= r < N and 0 <= c < N and neighbor in accessible_squares:
-#                     graph[square].append(neighbor)
-#     return graph
-
-
-# def find_connected_components(graph: Dict[Square, List[Square]], nodes: List[Square]) -> List[List[Square]]:
-#     """
-#     Finds connected components in the graph using BFS.
-#     """
-#     visited = set()
-#     components = []
-    
-#     for node in nodes:
-#         if node not in visited:
-#             component = []
-#             queue = deque([node])
-#             visited.add(node)
-#             while queue:
-#                 current = queue.popleft()
-#                 component.append(current)
-#                 for neighbor in graph[current]:
-#                     if neighbor not in visited:
-#                         visited.add(neighbor)
-#                         queue.append(neighbor)
-#             components.append(component)
-#     return components
-
-

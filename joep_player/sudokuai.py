@@ -8,7 +8,7 @@ import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 try:
-    from .evaluate_functions_2 import evaluate_node
+    from .evaluate_functions_best import evaluate_node
 except:
     print("Did not import eval functions")
     def evaluate_node(node):

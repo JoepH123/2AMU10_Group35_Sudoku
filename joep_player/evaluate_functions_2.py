@@ -29,9 +29,10 @@ def evaluate_node(node):
     # limit_opponent_mobility = 
     # check if last move completed a region, if this is the case, and the opponent could reach this cell than reward heavily, if opponent could not reach the cell punish heavily
     # We want to postpone finishing regions if opponent cannot finish it
+    print('score_diff: ', score_differential * weights[0], 'score_last_cell: ', score_last_placement_in_region * weights[1],  'score_one_empty: ',  score_second_to_last_placement_in_region * weights[2], 'mobility: ', mobility * weights[3], "centrality: ", centrality * weights[4])
 
-    return score_differential * weights[0] + score_second_to_last_placement_in_region * weights[1] + score_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4]
-    # return score_differential * 0.2 + score_last_placement_in_region * 0.2 + score_second_to_last_placement_in_region * 0.2 + mobility * 0.2 + centrality * 0.2
+    # return score_differential * weights[0] + score_second_to_last_placement_in_region * weights[1] + mobility * weights[2] + centrality * weights[3]
+    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4]
     # return score_differential * weights[0] + mobility * weights[1] + opp_mobility * weights[2] + centrality * weights[3]
     # return score_differential * weights[0] + centrality * weights[3] + opp_mobility * weights[2]
     # return opp_mobility
@@ -46,15 +47,35 @@ def weights_at_game_stage(node):
 
     if proportion_of_empty_cells >= 0.7:
         stage = 0
-        weights = 0.0, 0.0, 0.0, 0.5, 0.5
+        weights = 0, 0, 0, 2, 2
     elif 0.5 < proportion_of_empty_cells < 0.7:
         stage = 1
-        weights = 0.0, 0.0, 0.0, 0.5, 0.5
+        weights = 1, 1, 1, 3, 1
     else:  # proportion_of_empty_cells <= 0.3
         stage = 2
-        weights = 0.4, 0.3, 0.3, 0.0, 0.0
+        weights = 3, 3, 3, 2, 0
 
     return stage, weights
+
+
+# def weights_at_game_stage(node):
+#     ''' We want to divide the game into three stages. start (0), mid (1), end (2)'''
+
+#     nr_total_squares = node.board.N ** 2
+#     nr_empty_squares = nr_total_squares - len(node.occupied_squares1) - len(node.occupied_squares2)
+#     proportion_of_empty_cells = nr_empty_squares / nr_total_squares
+
+#     if proportion_of_empty_cells >= 0.7:
+#         stage = 0
+#         weights = 0.0, 0.0, 0.0, 0.4, 0.6
+#     elif 0.3 < proportion_of_empty_cells < 0.5:
+#         stage = 1
+#         weights = 0.1, 0.1, 0.1, 0.35, 0.35
+#     else:  # proportion_of_empty_cells <= 0.3
+#         stage = 2
+#         weights = 0.25, 0.25, 0.25, 0.25, 0.0
+
+#     return stage, weights
 
 
 def evaluate_last_placement_in_region(node):
@@ -65,16 +86,14 @@ def evaluate_last_placement_in_region(node):
     cell, nr_completed_regions = find_full_regions_of_cell(node, cell_last_move)  
     
     # For each last cell, determine if it's reachable by the opponent
-    if is_not_reachable_by_opponent_and_not_max_points(node, cell, nr_completed_regions):
-        score -8
+    if nr_completed_regions == 0:  # assign score of zero if move was not last placement in any region
+        score = 0
+    elif is_not_reachable_by_opponent_and_not_max_points(node, cell, nr_completed_regions):
+        score = -7 / nr_completed_regions  # punish harder when it completes a single region with move than when it completes two regions if the opponent cannot reach it
     else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
-        score += 8
+        score += 7 * nr_completed_regions
     
     return score
-    # if node.current_player == node.my_player:
-    #     return -score
-    # else:
-    #     return score    
     
 
 def find_full_regions_of_cell(node, cell):
@@ -135,30 +154,24 @@ def is_not_reachable_by_opponent_and_not_max_points(node, cell, nr_completed_reg
 
 def evaluate_second_to_last_placement_in_region(node):
     score = 0
-    player_squares = node.player_squares()
 
-    # Identify all last cells in their regions
-    last_cells = find_last_cells(node, player_squares)
+    # Identify the cell that can finish the most regions
+    cell, nr_completed_regions = find_regions_of_last_empty_cell(node)  
     
-    # For each last cell, determine if it's reachable by the opponent
-    for cell in last_cells:
-        if is_reachable_by_opponent(node, cell):
-            score -= 8
-        else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
-            score += 8
+    if nr_completed_regions == 0:  # no regions can be finished in a single move
+        score = 0  # so no negative but also no positive score --> we want other evaluation functions to lead in this scenario
+    elif is_reachable_by_opponent(node, cell):
+        score = -7 * nr_completed_regions  # when you leave more easy points to your opponent
+    else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
+        score += 7 * nr_completed_regions
     
     # Given that it is our turn, the opponent put the last move. So we are evaluating the move of the opponent
     # If the opponent put a number in the second to last cell of a region, and it is reachable by you, you want 
     # to negatively evaluate this move by the opponent 
     return score
 
-    # if node.current_player == node.my_player:
-    #     return -score
-    # else:
-    #     return score    
 
-
-def find_last_cells(node, player_squares):
+def find_regions_of_last_empty_cell(node):
     """
     Identifies cells in player_squares that are the last empty cell in their row, column, or block.
     
@@ -185,18 +198,24 @@ def find_last_cells(node, player_squares):
                 block = (r // m, c // n)
                 blocks[block].append((r, c))
     
-    # For each player_square, check if it's the last in any region --> if only one item in row, col, block dictionary then one empty cell in region.
-    for cell in player_squares:
-        r, c = cell
-        block = (r // m, c // n)
-        if len(rows[r]) == 1:
-            last_cells.add(cell)
-        if len(cols[c]) == 1:
-            last_cells.add(cell)
-        if len(blocks[block]) == 1:
-            last_cells.add(cell)
+    # For all cells check if they are the last empty cells of a region, if so how many regions can this empty cell complete
+    # Find empty cell which can complete maximum number of regions
+    most_dangerous_cell = (0,0), 0
+    for r in range(N):
+        for c in range(N):
+            cell_danger = 0
+            cell = r, c
+            block = (r // m, c // n)
+            if len(rows[r]) == 1:
+                cell_danger += 1
+            if len(cols[c]) == 1:
+                cell_danger += 1
+            if len(blocks[block]) == 1:
+                cell_danger += 1
+            if cell_danger > most_dangerous_cell[1]:
+                most_dangerous_cell = cell, cell_danger
     
-    return list(last_cells)
+    return most_dangerous_cell
     
     
 def is_reachable_by_opponent(node, cell):
@@ -219,6 +238,90 @@ def is_reachable_by_opponent(node, cell):
     # else:
         # print("not reachable")
     return False
+
+
+
+# def evaluate_second_to_last_placement_in_region(node):
+#     score = 0
+#     player_squares = node.player_squares()
+
+#     # Identify all last cells in their regions
+#     last_cells = find_last_cells(node, player_squares)
+    
+#     # For each last cell, determine if it's reachable by the opponent
+#     for cell in last_cells:
+#         if is_reachable_by_opponent(node, cell):
+#             score -= 8
+#         else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
+#             score += 8
+    
+#     # Given that it is our turn, the opponent put the last move. So we are evaluating the move of the opponent
+#     # If the opponent put a number in the second to last cell of a region, and it is reachable by you, you want 
+#     # to negatively evaluate this move by the opponent 
+#     return score 
+
+
+# def find_last_cells(node, player_squares):
+#     """
+#     Identifies cells in player_squares that are the last empty cell in their row, column, or block.
+    
+#     @param player_squares: List of squares where the current player can play.
+#     @return: List of squares that are the last empty cell in at least one region.
+#     """
+#     last_cells = set()
+#     N = node.board.N
+#     m, n = node.board.m, node.board.n  # assuming m and n are attributes of SudokuBoard
+    
+#     rows = {r: [] for r in range(N)}
+#     cols = {c: [] for c in range(N)}
+#     num_block_rows = N // m
+#     num_block_cols = N // n
+#     blocks = {(br, bc): [] for br in range(num_block_rows) for bc in range(num_block_cols)}
+    
+    
+#     # Populate empty cells in each region --> so if only one value in a row, col or block dictionary this means that last one, this is what we check in the next part
+#     for r in range(N):
+#         for c in range(N):
+#             if node.board.get((r, c)) == SudokuBoard.empty:
+#                 rows[r].append((r, c))
+#                 cols[c].append((r, c))
+#                 block = (r // m, c // n)
+#                 blocks[block].append((r, c))
+    
+#     # For each player_square, check if it's the last in any region --> if only one item in row, col, block dictionary then one empty cell in region.
+#     for cell in player_squares:
+#         r, c = cell
+#         block = (r // m, c // n)
+#         if len(rows[r]) == 1:
+#             last_cells.add(cell)
+#         if len(cols[c]) == 1:
+#             last_cells.add(cell)
+#         if len(blocks[block]) == 1:
+#             last_cells.add(cell)
+    
+#     return list(last_cells)
+    
+    
+# def is_reachable_by_opponent(node, cell):
+#     """
+#     Determines if a given cell is reachable by the opponent.
+    
+#     @param cell: The cell to check.
+#     @return: True if reachable by opponent, False otherwise.
+#     """
+#     simulated_state = copy.deepcopy(node)
+#     simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
+#     playable_squares_opponent = simulated_state.player_squares()
+#     # print("check if reachable")
+#     # print(cell)
+#     if playable_squares_opponent is not None:
+#         # Check if the cell is in opponent's allowed squares
+#         if cell in playable_squares_opponent:
+#             # print("reachable")
+#             return True
+#     # else:
+#         # print("not reachable")
+#     return False
 
 
 def calculate_score_differential(node):
@@ -268,7 +371,7 @@ def evaluate_central_control(node):
     bullseye_scores = bullseye_centrality_score_division_over_board(N)
     corridor_scores = corridor_centrality_score_division_over_board(N)
     combined_scores = [[bullseye_scores[i][j] + corridor_scores[i][j] for j in range(N)] for i in range(N)]
-
+    
     # print board centrality values
     # for row in combined_scores:
     #     print(row)
@@ -310,7 +413,7 @@ def corridor_centrality_score_division_over_board(N, middle_value=2):
     return cell_scores
 
 
-def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_value_step=1, central_cell_value_step=2):
+def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_value_step=0.5, central_cell_value_step=1):
     '''awards extra points in rings. Outer ring is zero points, then 1 extra value for ring inside, and 2 extra for center ring/cell'''
     center = N // 2
     max_ring = center  # Number of rings from outer ring to center
