@@ -26,7 +26,7 @@ def evaluate_node(node):
     mobility = positively_evaluate_mobility(node)
     centrality = evaluate_central_control(node)
     # print('score_diff: ', score_differential * weights[0], 'score_last_cell: ', score_last_placement_in_region * weights[1],  'score_one_empty: ',  score_second_to_last_placement_in_region * weights[2], 'mobility: ', mobility * weights[3], "centrality: ", centrality * weights[4])
-    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4]
+    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3]# + centrality * weights[4]
 
 
 def weights_at_game_stage(node):
