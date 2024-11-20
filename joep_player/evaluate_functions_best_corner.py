@@ -22,11 +22,13 @@ def evaluate_node(node):
     stage, weights = weights_at_game_stage(node)
     score_differential = calculate_score_differential(node)
     score_second_to_last_placement_in_region = evaluate_second_to_last_placement_in_region(node)
-    score_last_placement_in_region = evaluate_last_placement_in_region(node)  # also in score differential, might be obsolete
+    score_last_placement_in_region = evaluate_last_placement_in_region(node)
     mobility = positively_evaluate_mobility(node)
-    centrality = evaluate_central_control(node)
+    centrality = evaluate_central_control(node)  # --> right now an error in the code for centrality
+    punish_corner_cell = compute_corner(node)
+    create_corner = punish_zero(node)
     # print('score_diff: ', score_differential * weights[0], 'score_last_cell: ', score_last_placement_in_region * weights[1],  'score_one_empty: ',  score_second_to_last_placement_in_region * weights[2], 'mobility: ', mobility * weights[3], "centrality: ", centrality * weights[4])
-    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4]
+    return score_differential * weights[0] + score_last_placement_in_region * weights[1] + score_second_to_last_placement_in_region * weights[2] + mobility * weights[3] + centrality * weights[4] + create_corner * weights[5] + punish_corner_cell * weights[6]
 
 
 def weights_at_game_stage(node):
@@ -38,15 +40,16 @@ def weights_at_game_stage(node):
 
     if proportion_of_empty_cells >= 0.7:
         stage = 0
-        weights = 0, 0, 0, 2, 2  # explore run and stay central
+        weights = 0, 0, 0, 2, 2, 4, 1
     elif 0.5 < proportion_of_empty_cells < 0.7:
         stage = 1
-        weights = 1, 1, 1, 3, 1  # explore but dont give away easy points, collect easy points and staying central is not as important anymore
+        weights = 1, 1, 1, 3, 1, 0, 1
     else:  # proportion_of_empty_cells <= 0.3
         stage = 2
-        weights = 3, 3, 3, 2, 0  # Only focus on points, if few points can be score use mobility instead
+        weights = 3, 3, 3, 2, 0, 0, 1
 
     return stage, weights
+
 
 
 def evaluate_last_placement_in_region(node):
@@ -81,6 +84,7 @@ def find_full_regions_of_cell(node, cell):
     num_block_cols = N // n
     blocks = {(br, bc): [] for br in range(num_block_rows) for bc in range(num_block_cols)}
     
+    
     # Populate empty cells in each region --> so if only one value in a row, col or block dictionary this means that last one, this is what we check in the next part
     for r in range(N):
         for c in range(N):
@@ -114,9 +118,12 @@ def is_not_reachable_by_opponent_and_not_max_points(node, cell, nr_completed_reg
     simulated_state = copy.deepcopy(node)
     simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
     playable_squares_opponent = simulated_state.player_squares()
+    # print("check if reachable")
+    # print(cell)
     if playable_squares_opponent is not None:
         # Check if the cell is in opponent's allowed squares
         if cell not in playable_squares_opponent and nr_completed_regions < 3:
+            # print("reachable")
             return True
     return False
 
@@ -138,6 +145,7 @@ def evaluate_second_to_last_placement_in_region(node):
     # Given that it is our turn, the opponent put the last move. So we are evaluating the move of the opponent
     # If the opponent put a number in the second to last cell of a region, and it is reachable by you, you want 
     # to negatively evaluate this move by the opponent 
+    # return score
 
     if node.current_player == node.my_player:
         return -score
@@ -161,6 +169,7 @@ def find_last_cells(node, player_squares):
     num_block_rows = N // m
     num_block_cols = N // n
     blocks = {(br, bc): [] for br in range(num_block_rows) for bc in range(num_block_cols)}
+    
     
     # Populate empty cells in each region --> so if only one value in a row, col or block dictionary this means that last one, this is what we check in the next part
     for r in range(N):
@@ -195,10 +204,15 @@ def is_reachable_by_opponent(node, cell):
     simulated_state = copy.deepcopy(node)
     simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
     playable_squares_opponent = simulated_state.player_squares()
+    # print("check if reachable")
+    # print(cell)
     if playable_squares_opponent is not None:
         # Check if the cell is in opponent's allowed squares
         if cell in playable_squares_opponent:
+            # print("reachable")
             return True
+    # else:
+        # print("not reachable")
     return False
 
 
@@ -221,6 +235,21 @@ def positively_evaluate_mobility(node):
         simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
         return len(simulated_state.player_squares())
 
+    
+def negatively_evaluate_opponent_mobility(node):
+    """
+    Evaluates the opponent's mobility to identify opportunities to limit their moves.
+
+    Returns a lower score if the opponent has more mobility (since we want to minimize it).
+    """
+    if node.my_player == node.current_player: # if it is our turn
+        simulated_state = copy.deepcopy(node)
+        simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our opponent to move
+        return -len(simulated_state.player_squares())
+    
+    else: # if it is not our turn
+        return -len(node.player_squares())
+
 
 def evaluate_central_control(node):
     """
@@ -228,7 +257,17 @@ def evaluate_central_control(node):
     """
     N = node.board.N
 
+    # cell_scores = bullseye_centrality_score_division_over_board(N)
+    # cell_scores = corridor_centrality_score_division_over_board(N)
+
     bullseye_scores = bullseye_centrality_score_division_over_board(N)
+    # corridor_scores = corridor_centrality_score_division_over_board(N)
+    # combined_scores = [[bullseye_scores[i][j] + corridor_scores[i][j] for j in range(N)] for i in range(N)]
+    combined_scores = bullseye_scores
+    
+    # print board centrality values
+    # for row in combined_scores:
+    #     print(row)
 
     # Now, sum up the scores for the player's controlled cells
     control_score = 0
@@ -237,12 +276,39 @@ def evaluate_central_control(node):
     # Add control score when you occupy cells in the middle
     for square in occupied_squares:
         i, j = square
-        control_score += bullseye_scores[i][j]
+        control_score += combined_scores[i][j]
     
     if node.current_player == node.my_player:
         return -control_score
     else:
         return control_score    
+
+    # return control_score
+
+
+def corridor_centrality_score_division_over_board(N, middle_value=2):
+    '''Awards points to two or three central columns, and zero to other columns'''
+    # Initialize the scoring matrix with zeros
+    cell_scores = [[0 for _ in range(N)] for _ in range(N)]
+    
+    # Determine middle columns
+    if N % 2 == 1:
+        # Odd N, middle columns are at N//2 -1, N//2, N//2 + 1
+        middle_cols = [N // 2 - 1, N // 2, N // 2 + 1]
+    else:
+        # Even N, middle columns are at N//2 - 1 and N//2
+        middle_cols = [N // 2 - 1, N // 2]
+    
+    # Assign the middle_value to the middle columns
+    for i in range(N):
+        for j in middle_cols:
+            cell_scores[i][j] = middle_value
+
+    # print board centrality values
+    # for row in cell_scores:
+    #     print(row)
+    
+    return cell_scores
 
 
 def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_value_step=1, central_cell_value_step=2):
@@ -274,3 +340,64 @@ def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_va
     #     print(row)
 
     return cell_scores
+
+
+def compute_corner(node):
+    """
+    Compute the blocking advantage for cells located only on the player's half of the board.
+
+    Parameters:
+    - node: The GameState object.
+
+    Returns:
+    - An integer score representing the blocking advantage.
+    """
+
+    if node.my_player ==1:
+        # Define players' occupied squares
+        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+        opponent_occupied = (node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1)
+        score = 0
+
+        corner = [(0,1), (1,1), (1,0)]
+        for cell in corner:
+            if cell in player_occupied:
+                score+=25
+            if cell in opponent_occupied:
+                return 0
+
+        if (0,0) in player_occupied:
+            score = -100
+        return score
+    if node.my_player ==2:
+        N = node.board.N
+        # Define players' occupied squares
+        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+        opponent_occupied = (node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1)
+        score = 0
+
+        corner = [(N-2,0), (N-2,1), (N-1,1)]
+        for cell in corner:
+            if cell in player_occupied:
+                score+=25
+            if cell in opponent_occupied:
+                return 0
+
+        if (N-1,0) in player_occupied:
+            score = -100
+        return score
+
+def punish_zero(node):
+    if node.my_player ==1:
+        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+        score=0
+        if (0,0) in player_occupied:
+            score = -100
+        return score
+    if node.my_player ==2:
+        N = node.board.N
+        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+        score=0
+        if (N-1,0) in player_occupied:
+            score = -100
+        return score
