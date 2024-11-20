@@ -328,8 +328,8 @@ def evaluate_node(node):
     zero = punish_zero(node)
 
 
-    eval_func = score_diff_game + score_mobility + score_center + score_one_empty + zero
-    print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
+    eval_func = score_diff_game + score_mobility + score_center + score_one_empty  + zero
+    #print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
 
 
     return eval_func
