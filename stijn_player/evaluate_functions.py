@@ -156,7 +156,7 @@ def score_one_empty_in_region(node):
 def calc_score_center_moves(node):
 
     N = node.board.N  # Board size (N x N grid)
-    center = (N - 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
+    center = (N+1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
 
     def distance_to_center(row, col):
 
@@ -210,7 +210,7 @@ def evaluate_node(node):
     zero = punish_zero(node)
 
 
-    eval_func = score_diff_game + score_mobility + score_center + score_one_empty  + zero
+    eval_func = score_diff_game + score_mobility + score_one_empty  + zero + score_center
     #print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
 
 
