@@ -108,12 +108,14 @@ if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")  # 'spawn' instead of 'fork' is used in windows
 
     # To run this benchmark, first create a benchmark object with the desired settings as shown below:
-    benchmark_10_standard = Benchmark('team35_current_best', count=10, comparing_models = ["greedy_player", "team35_with_randomness", "jord_player"], board_sizes=["empty-2x2.txt", "empty-2x3.txt", "empty-3x3.txt", "empty-3x4.txt", "empty-4x4.txt"])
+    # benchmark_10_standard = Benchmark('team35_current_best', count=10, comparing_models = ["greedy_player", "team35_with_randomness", "jord_player"], board_sizes=["empty-2x2.txt", "empty-2x3.txt", "empty-3x3.txt", "empty-3x4.txt", "empty-4x4.txt"])
     # benchmark_2_testing = Benchmark('team35_current_best', count=1, comparing_models = ["greedy_player", "team35_with_randomness"], board_sizes=["empty-2x2.txt", "empty-2x3.txt"])
-    
+    benchmark_j_v_s = Benchmark('joep_player', count=10, comparing_models = ["stijn_player"], board_sizes=["empty-2x3.txt", "empty-3x3.txt"])
+
+
     # All results are then computed and timed
     start = time.perf_counter()
-    results = benchmark_10_standard.compute_benchmark_results()
+    results = benchmark_j_v_s.compute_benchmark_results()
     end = time.perf_counter()
     print(f"Total elapsed time to compute benchmark: {end - start}")
 
