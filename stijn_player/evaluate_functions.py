@@ -326,6 +326,7 @@ def evaluate_node(node):
 
     eval_func = score_diff_game + score_mobility + score_center + score_one_empty + 2*new
     print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
+
     return eval_func
 
 def compute_blocking_advantage(node):
