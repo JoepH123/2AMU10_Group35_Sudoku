@@ -327,14 +327,11 @@ def evaluate_node(node):
     corner = compute_corner(node)
     zero = punish_zero(node)
 
-<<<<<<< Updated upstream
-    eval_func = score_diff_game + score_mobility + score_center + score_one_empty + 2*new
+
+    eval_func = score_diff_game + score_mobility + score_center + score_one_empty + zero
     print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", 2*new, 'eval: ' ,eval_func)
 
-=======
-    eval_func = score_diff_game + score_mobility + score_center + score_one_empty + zero
-    #print('score_diff: ', score_diff_game, 'score_center: ', score_center,  'score_one_empty: ', score_one_empty , 'mobility: ',score_mobility, "new: ", corner, 'eval: ' ,eval_func)
->>>>>>> Stashed changes
+
     return eval_func
 
 def compute_blocking_advantage(node):
