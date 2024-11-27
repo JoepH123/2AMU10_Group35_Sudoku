@@ -176,8 +176,8 @@ def calc_score_center_moves(node) -> float:
     float: The score difference between the current player and the opponent.
     """
     N = node.board.N  # Board size (N x N grid)
-    center_row = (N + 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
-    center_col = (N - 1) / 2
+    center_row = (N + 1) / 2  # Center point 2 after middle row
+    center_col = (N - 1) / 2 # center point is middle col
     def distance_to_center(row: int, col: int) -> float:
         """
         Calculate the weighted distance of a cell to the center of the board.

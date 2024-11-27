@@ -7,11 +7,8 @@ import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
-try:
-    from .evaluate_functions import evaluate_node
-except:
-    def evaluate_node(node):
-        return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
+from .evaluate_functions import evaluate_node
+
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
@@ -322,7 +319,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return min_eval
 
 
-    # Note: This is a very naive implementation.
     def compute_best_move(self, game_state):
         """
         Compute the best move for the current game state and propose it.
@@ -330,12 +326,15 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Parameters:
         - game_state (GameState): The current game state.
         """
-        best_move = None
         best_value = float('-inf')
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
-        children = self.get_children(root_node)
 
+        # propose initial random move
+        all_moves = self.get_all_moves(root_node)
+        self.propose_move(random.choice(all_moves))
+
+        children = self.get_children(root_node)
         # Evaluate immediate moves
         for child in children:
             child.root_move = child.last_move
@@ -344,7 +343,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 best_value = move_value
                 best_move = child.root_move
                 self.propose_move(best_move)
-
+        #print('depth', 1, 'done','#############################################')
         # Perform deeper search
         for depth in range(1, 10):
             for child in children:
@@ -353,4 +352,4 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
-            print('depth', depth, 'done','#############################################')
+            #print('depth', depth+1, 'done','#############################################')
