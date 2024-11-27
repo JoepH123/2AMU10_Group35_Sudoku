@@ -262,7 +262,7 @@ def evaluate_node(node) -> float:
     score_one_empty = score_one_empty_in_region(node)
     score_mobility = calculate_mobility(node)
 
-    eval_func = score_diff_game + score_mobility + score_one_empty
+    eval_func = score_diff_game + score_mobility + score_one_empty + score_center
 
     return eval_func
 
