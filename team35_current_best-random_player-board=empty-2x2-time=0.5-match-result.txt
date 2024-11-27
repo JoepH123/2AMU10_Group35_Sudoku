@@ -1,0 +1,7 @@
+team35_current_best - random_player 1-0
+
+random_player - team35_current_best 1-0
+
+team35_current_best - random_player 1-0
+
+Match result: team35_current_best - random_player 2-1
