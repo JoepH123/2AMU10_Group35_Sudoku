@@ -161,24 +161,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return True
 
 
-    def playable_square(self, node, i, j, value):
-        """
-        Check if the square at position (i, j) is playable for the given value.
-
-        Parameters:
-        - node (NodeGameState): The current game state.
-        - i (int): Row index.
-        - j (int): Column index.
-        - value (int): The value to place.
-
-        Returns:
-        - bool: True if the square is playable, False otherwise.
-        """
-        return (node.board.get((i, j)) == SudokuBoard.empty
-                and TabooMove((i, j), value) not in node.taboo_moves
-                and (i, j) in node.player_squares())
-
-
     def get_all_moves(self, node):
         """
         Generate all possible valid moves for the current player.
@@ -189,12 +171,14 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - list of Move: A list of all valid moves.
         """
+
         N = node.board.N
-        all_moves = [Move((i, j), value)
-                     for i in range(N) for j in range(N)
+        player_squares = node.player_squares()
+        all_moves = [Move(coordinates, value)
+                     for coordinates in player_squares
                      for value in range(1, N + 1)
-                     if self.playable_square(node, i, j, value)
-                     and self.respects_rule_C0(node, i, j, value)]
+                     if TabooMove(coordinates, value) not in node.taboo_moves
+                     and self.respects_rule_C0(node, coordinates[0], coordinates[1], value)]
         return all_moves
 
 
@@ -369,4 +353,4 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
-
+            print('depth', depth, 'done','#############################################')
