@@ -176,8 +176,8 @@ def calc_score_center_moves(node) -> float:
     float: The score difference between the current player and the opponent.
     """
     N = node.board.N  # Board size (N x N grid)
-    center = (N + 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
-
+    center_row = (N + 1) / 2  # Center point (e.g., 4.5 for a 9x9 grid)
+    center_col = (N - 1) / 2
     def distance_to_center(row: int, col: int) -> float:
         """
         Calculate the weighted distance of a cell to the center of the board.
@@ -191,7 +191,7 @@ def calc_score_center_moves(node) -> float:
         """
         row_weight = 0.99  # Weight for row distance
         col_weight = 0.01  # Weight for column distance
-        return ((row_weight * (row - center)) ** 2 + (col_weight * (col - center)) ** 2) ** 0.5
+        return ((row_weight * (row - center_row)) ** 2 + (col_weight * (col - center_col)) ** 2) ** 0.5
 
     def calculate_player_score(occupied_squares) -> float:
         """
@@ -254,7 +254,7 @@ def evaluate_node(node) -> float:
     num_occupied = len(node.occupied_squares1) if node.my_player == 1 else len(node.occupied_squares2)
 
     # Early game evaluation
-    if num_occupied <= 3:
+    if num_occupied <= node.board.n-1:
         eval_func = score_diff_game + 2 * score_center
         return eval_func
 
