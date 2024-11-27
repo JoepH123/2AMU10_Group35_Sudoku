@@ -110,7 +110,7 @@ if __name__ == '__main__':
     # To run this benchmark, first create a benchmark object with the desired settings as shown below:
     # benchmark_10_standard = Benchmark('team35_current_best', count=10, comparing_models = ["greedy_player", "team35_with_randomness", "jord_player"], board_sizes=["empty-2x2.txt", "empty-2x3.txt", "empty-3x3.txt", "empty-3x4.txt", "empty-4x4.txt"])
     # benchmark_2_testing = Benchmark('team35_current_best', count=1, comparing_models = ["greedy_player", "team35_with_randomness"], board_sizes=["empty-2x2.txt", "empty-2x3.txt"])
-    benchmark = Benchmark('team35_A1', count=10, comparing_models = ["greedy_player", "stijn_player", "player_simple_minimax"], board_sizes=["empty-2x3.txt", "empty-3x3.txt"])
+    benchmark = Benchmark('team35_A1', count=5, comparing_models = ["greedy_player", "player_simple_minimax"], board_sizes=["empty-2x2.txt", "empty-2x3.txt", "empty-3x3.txt"])
 
 
     # All results are then computed and timed
