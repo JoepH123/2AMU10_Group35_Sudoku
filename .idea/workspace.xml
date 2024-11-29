@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="677bae09-3ab8-4d56-bab2-d8b04246a4a9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/stijn_player/backup.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/stijn_player/evaluate_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/stijn_player/evaluate_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stijn_player/sudokuai.py" beforeDir="false" afterPath="$PROJECT_DIR$/stijn_player/sudokuai.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stijn_player/sudokuai_old.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/team35_A1.zip" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
