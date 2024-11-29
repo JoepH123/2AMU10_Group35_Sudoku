@@ -7,35 +7,79 @@ import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
-try:
-    from .evaluate_functions_best_corner import evaluate_node
-except:
-    print("Did not import eval functions")
-    def evaluate_node(node):
-        return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
+from .evaluate_functions import evaluate_node
+from sudoku_solver import SudokuSolver
+
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
+        """
+        Initialize a NodeGameState by copying the given game_state and adding extra attributes.
+
+        Parameters:
+        - game_state (GameState): The game state to copy.
+        - root_move (Move, optional): The initial move leading to this node.
+        - last_move (Move, optional): The last move made.
+        - my_player (int, optional): The AI's player number.
+        """
         self.__dict__ = game_state.__dict__.copy()
         self.root_move = root_move
         self.last_move = last_move
         self.my_player = my_player
+        # Given input board find valid values for all cells, using a sudoku solver
+        solver = SudokuSolver(game_state.board.squares, game_state.board.N, game_state.board.m, game_state.board.n)
+        solved_board_dict = solver.get_board_as_dict()
+        self.solved_board_dict = solved_board_dict
+
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
+
     def __init__(self):
+        """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
 
+
     def evaluate(self, node):
+        """
+        Evaluate the heuristic value of a node.
+
+        Parameters:
+        - node (NodeGameState): The game state node to evaluate.
+
+        Returns:
+        - float: The heuristic value of the node.
+        """
         return evaluate_node(node)
 
+
     def is_valid_move_possible(self, node):
+        """
+        Check if there is at least one valid move possible for the current player.
+
+        Parameters:
+        - node (NodeGameState): The current game state.
+
+        Returns:
+        - bool: True if at least one valid move is possible, False otherwise.
+        """
         board = node.board
         N = board.N  # Size of the grid (N = n * m)
         n, m = board.n, board.m  # Block dimensions
 
-        def is_value_valid(row, col, value):
 
-            # Precompute block starting indices
+        def is_value_valid(row, col, value):
+            """
+            Check if placing 'value' at position (row, col) is valid according to Sudoku rules.
+
+            Parameters:
+            - row (int): Row index.
+            - col (int): Column index.
+            - value (int): The value to place.
+
+            Returns:
+            - bool: True if the move is valid, False otherwise.
+            """
+            # Calculate the starting indices of the block
             block_start_row = (row // m) * m
             block_start_col = (col // n) * n
 
@@ -49,130 +93,129 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     return False
 
                 # Check block
-                block_row = block_start_row + i // n
-                block_col = block_start_col + i % n
+                block_row = block_start_row + (i // n)
+                block_col = block_start_col + (i % n)
                 if board.get((block_row, block_col)) == value:
                     return False
 
             return True
 
-        # Iterate over all cells on the board
+        # Iterate over all empty cells on the board
         for row in range(N):
             for col in range(N):
-                if board.get((row, col)) == 0:  # Empty cell
+                if board.get((row, col)) == SudokuBoard.empty:  # Empty cell
                     # Check if any value (1 to N) can be placed in this cell
                     for value in range(1, N + 1):
                         if is_value_valid(row, col, value):
                             return True  # Found at least one valid move
 
         return False  # No valid moves found
+
     def is_terminal(self, node):
+        """
+        Determine if the game has reached a terminal state (no valid moves left).
+
+        Parameters:
+        - node (NodeGameState): The current game state.
+
+        Returns:
+        - bool: True if the game is over, False otherwise.
+        """
         return not self.is_valid_move_possible(node)
 
-    def respects_rule_C0(self, node, row, col, value):
-        board = node.board
-        N = node.board.N  # Size of the grid (N = n * m)
-        n, m = node.board.n, node.board.m  # Block dimensions
 
-        # Precompute block starting indices
-        block_start_row = (row // m) * m
-        block_start_col = (col // n) * n
+    def get_all_moves(self, node, solved_board_dict):
+        """
+        Generate all possible valid moves for the current player.
 
-        # Check row, column, and block in a single pass
-        for i in range(N):
-            # Check the row
-            if board.get((row, i)) == value:
-                return False
+        Parameters:
+        - node (NodeGameState): The current game state.
 
-            # Check the column
-            if board.get((i, col)) == value:
-                return False
-
-            # Check the block
-            block_row = block_start_row + i // n
-            block_col = block_start_col + i % n
-            if board.get((block_row, block_col)) == value:
-                return False
-
-        return True
-
-    def playable_square(self, node, i, j, value):
-        return node.board.get((i, j)) == SudokuBoard.empty \
-            and not TabooMove((i, j), value) in node.taboo_moves \
-            and (i, j) in node.player_squares()
-
-
-    def get_all_moves(self, node):
-        N = node.board.N
-        all_moves = [Move((i, j), value) for i in range(N) for j in range(N)
-                     for value in range(1, N+1) if self.playable_square(node, i, j, value) and self.respects_rule_C0(node, i, j, value)]
+        Returns:
+        - list of Move: A list of all valid moves.
+        """
+        player_squares = node.player_squares()
+        all_moves = [Move(coordinates, solved_board_dict[coordinates]) for coordinates in player_squares]
         return all_moves
 
 
     def calculate_move_score(self, node, move):
+        """
+        Calculate the score obtained by making a particular move.
 
+        Parameters:
+        - node (NodeGameState): The current game state.
+        - move (Move): The move to evaluate.
+
+        Returns:
+        - int: The score obtained from the move.
+        """
         board = node.board
         N = board.N  # Size of the grid (N = n * m)
         n, m = board.n, board.m  # Block dimensions
         row, col = move.square  # Get the row and column of the move
 
-        # Precompute block starting indices
+        # Calculate the starting indices of the block
         block_start_row = (row // m) * m
         block_start_col = (col // n) * n
 
         def is_region_complete(values):
+            """
+            Check if a region (row, column, or block) is complete.
 
-            return len(values) == N and len(set(values)) == N and all(value != 0 for value in values)
+            Parameters:
+            - values (list of int): The values in the region.
+
+            Returns:
+            - bool: True if the region is complete, False otherwise.
+            """
+            return (len(values) == N
+                    and len(set(values)) == N
+                    and all(value != SudokuBoard.empty for value in values))
+
+        # Collect values in the row, column, and block
+        row_values = [board.get((row, i)) for i in range(N)]
+        col_values = [board.get((i, col)) for i in range(N)]
+        block_values = [
+            board.get((block_start_row + (i // n), block_start_col + (i % n)))
+            for i in range(N)
+        ]
 
         # Count completed regions
-        completed_regions = 0
-
-        # Check row, column, and block in a single loop
-        row_values = []
-        col_values = []
-        block_values = []
-
-        for i in range(N):
-            # Collect row values
-            row_values.append(board.get((row, i)))
-
-            # Collect column values
-            col_values.append(board.get((i, col)))
-
-            # Collect block values
-            block_row = block_start_row + i // n
-            block_col = block_start_col + i % n
-            block_values.append(board.get((block_row, block_col)))
-
-        # Evaluate completeness of regions
-        if is_region_complete(row_values):
-            completed_regions += 1
-        if is_region_complete(col_values):
-            completed_regions += 1
-        if is_region_complete(block_values):
-            completed_regions += 1
+        completed_regions = sum([
+            is_region_complete(row_values),
+            is_region_complete(col_values),
+            is_region_complete(block_values)
+        ])
 
         # Return score based on completed regions
         if completed_regions == 1:
-            return 1  # 1 point for 1 region
+            return 1  # 1 point for completing 1 region
         elif completed_regions == 2:
-            return 3  # 3 points for 2 regions
+            return 3  # 3 points for completing 2 regions
         elif completed_regions == 3:
-            return 7  # 7 points for 3 regions
+            return 7  # 7 points for completing all 3 regions
         else:
             return 0  # No regions completed
 
 
     def get_children(self, node):
-        all_moves = self.get_all_moves(node)
+        """
+        Generate all possible successor game states from the current node.
+
+        Parameters:
+        - node (NodeGameState): The current game state.
+
+        Returns:
+        - list of NodeGameState: A list of successor game states.
+        """
+        all_moves = self.get_all_moves(node, node.solved_board_dict)
         all_game_states = []
 
-        if len(all_moves) == 0:
+        if not all_moves:
+            # No valid moves; pass the turn to the next player
             new_node = copy.deepcopy(node)
-            if new_node.current_player == 1:
-                new_node.current_player = 2
-            else:
-                new_node.current_player = 1
+            new_node.current_player = 3 - new_node.current_player  # Switch player
             all_game_states.append(new_node)
             return all_game_states
 
@@ -181,18 +224,37 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             new_node.last_move = move
             new_node.board.put(move.square, move.value)
             new_node.moves.append(move)
-            new_node.scores[new_node.current_player - 1] += self.calculate_move_score(new_node, move)
+            # Update the score for the current player
+            score = self.calculate_move_score(new_node, move)
+            new_node.scores[new_node.current_player - 1] += score
+            # Update occupied squares and switch player
+
             if new_node.current_player == 1:
                 new_node.occupied_squares1.append(move.square)
                 new_node.current_player = 2
+
             else:
                 new_node.occupied_squares2.append(move.square)
                 new_node.current_player = 1
             all_game_states.append(new_node)
+
         return all_game_states
 
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
+        """
+        Perform the Minimax algorithm with Alpha-Beta pruning.
+
+        Parameters:
+        - node (NodeGameState): The current game state.
+        - depth (int): The depth limit for the search.
+        - is_maximizing_player (bool): True if it's the maximizing player's turn.
+        - alpha (float): Alpha value for pruning.
+        - beta (float): Beta value for pruning.
+
+        Returns:
+        - float: The evaluated score of the node.
+        """
         # Base case: If maximum depth is reached or game state is terminal
         if depth == 0 or self.is_terminal(node):
             return self.evaluate(node)
@@ -216,12 +278,24 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     break  # Alpha-Beta Pruning
             return min_eval
 
-    # N.B. This is a very naive implementation.
-    def compute_best_move(self, game_state: GameState) -> None:
-        best_move = None
+
+    def compute_best_move(self, game_state):
+        """
+        Compute the best move for the current game state and propose it.
+
+        Parameters:
+        - game_state (GameState): The current game state.
+        """
+        # Initialize copied gamestate with which to reason forward
         best_value = float('-inf')
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
+        print(root_node.solved_board_dict)
+        # Propose initial random move
+        all_moves = self.get_all_moves(root_node, root_node.solved_board_dict)
+        self.propose_move(random.choice(all_moves))
+
+        # Evaluate immediate moves
         children = self.get_children(root_node)
         for child in children:
             child.root_move = child.last_move
@@ -230,7 +304,9 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 best_value = move_value
                 best_move = child.root_move
                 self.propose_move(best_move)
-        #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+        print('depth', 1, 'done','#############################################')
+
+        # Perform deeper search
         for depth in range(1, 10):
             for child in children:
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
@@ -238,11 +314,4 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
-            print('depth', depth, 'done','#############################################')
-
-
-
-
-
-
-
+            print('depth', depth+1, 'done','#############################################')

@@ -1,365 +1,268 @@
-import random
-import time
 import copy
-import numpy as np
 
-import sys
-import os
-# Voeg de map toe waar 'competitive_sudoku' staat
-module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if module_path not in sys.path:
-    sys.path.append(module_path)
-
-from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
-import competitive_sudoku.sudokuai
-
-# python simulate_game.py --first=joep_player --second=jord_player
-# python simulate_game.py --first=jord_player --second=joep_player
-# python simulate_game.py --first=joep_player --second=stijn_player
-
-def evaluate_node(node):
-    ''' Combining the evaluation functions '''
-    stage, weights = weights_at_game_stage(node)
-    score_differential = calculate_score_differential(node)
-    score_second_to_last_placement_in_region = evaluate_second_to_last_placement_in_region(node)
-    mobility = positively_evaluate_mobility(node)
-    centrality = evaluate_central_control(node)
-    # opp_mobility = negatively_evaluate_opponent_mobility(node)  --> does not seem to work well, keeps all number in the back line
-    # limit_opponent_mobility = 
-    # check if last move completed a region, if this is the case, and the opponent could reach this cell than reward heavily, if opponent could not reach the cell punish heavily
-    # We want to postpone finishing regions if opponent cannot finish it
-
-    return score_differential * weights[0] + score_second_to_last_placement_in_region * weights[1] + mobility * weights[2] + centrality * weights[3]
-    # return score_differential * 0.25 + score_second_to_last_placement_in_region * 0.25 + mobility * 0.25 + centrality * 0.25
-    # return score_differential * weights[0] + mobility * weights[1] + opp_mobility * weights[2] + centrality * weights[3]
-    # return score_differential * weights[0] + centrality * weights[3] + opp_mobility * weights[2]
-    # return opp_mobility
-
-
-def evaluate_second_to_last_placement_in_region(node):
-    score = 0
-    player_squares = node.player_squares()
-
-    # Identify all last cells in their regions
-    last_cells = find_last_cells(node, player_squares)
-    
-    # For each last cell, determine if it's reachable by the opponent
-    for cell in last_cells:
-        if is_reachable_by_opponent(node, cell):
-            score += 8
-        else:  # if last empty cell in region and not reachable by opponent it must be reachable by you
-            score -= 8
-    
-    if node.current_player == node.my_player:
-        return score
-    else:
-        return -score    
-
-
-def find_last_cells(node, player_squares):
+def calculate_mobility(node) -> float:
     """
-    Identifies cells in player_squares that are the last empty cell in their row, column, or block.
-    
-    @param player_squares: List of squares where the current player can play.
-    @return: List of squares that are the last empty cell in at least one region.
+    Calculate the mobility score for the current node.
+
+    Parameters:
+    node (Node): The current game state.
+
+    Returns:
+    float: The mobility score, representing the number of available moves normalized by board size.
     """
-    last_cells = set()
     N = node.board.N
-    m, n = node.board.m, node.board.n  # assuming m and n are attributes of SudokuBoard
-    
-    rows = {r: [] for r in range(N)}
-    cols = {c: [] for c in range(N)}
-    num_block_rows = N // m
-    num_block_cols = N // n
-    blocks = {(br, bc): [] for br in range(num_block_rows) for bc in range(num_block_cols)}
-    
-    
-    # Populate empty cells in each region --> so if only one value in a row, col or block dictionary this means that last one, this is what we check in the next part
-    for r in range(N):
-        for c in range(N):
-            if node.board.get((r, c)) == SudokuBoard.empty:
-                rows[r].append((r, c))
-                cols[c].append((r, c))
-                block = (r // m, c // n)
-                blocks[block].append((r, c))
-    
-    # For each player_square, check if it's the last in any region --> if only one item in row, col, block dictionary then one empty cell in region.
-    for cell in player_squares:
-        r, c = cell
-        block = (r // m, c // n)
-        if len(rows[r]) == 1:
-            last_cells.add(cell)
-        if len(cols[c]) == 1:
-            last_cells.add(cell)
-        if len(blocks[block]) == 1:
-            last_cells.add(cell)
-    
-    return list(last_cells)
-    
-    
-def is_reachable_by_opponent(node, cell):
+    if node.my_player == node.current_player:  # If it is our turn
+        return len(node.player_squares()) / N
+    else:  # If it is not our turn
+        # Simulate the state with our player to move
+        simulated_state = copy.deepcopy(node)
+        simulated_state.current_player = 3 - node.current_player  # Swap current player
+        return len(simulated_state.player_squares()) / N
+
+
+def score_one_empty_in_region(node) -> int:
     """
-    Determines if a given cell is reachable by the opponent.
-    
-    @param cell: The cell to check.
-    @return: True if reachable by opponent, False otherwise.
+    Calculate the score based on regions (rows, columns, blocks) that have exactly one empty cell.
+
+    Parameters:
+    node (Node): The current game state.
+
+    Returns:
+    int: The score based on regions with one empty cell.
     """
-    simulated_state = copy.deepcopy(node)
-    simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
-    playable_squares_opponent = simulated_state.player_squares()
-    # N = node.board.N
-    # print("check if reachable")
-    # print(cell)
-    if playable_squares_opponent is not None:
-        # Check if the cell is in opponent's allowed squares
-        if cell in playable_squares_opponent:
-            # print("reachable")
-            return True
-    else:
-        # print("not reachable")
+    my_player = node.my_player
+    N = node.board.N  # Board size (N x N grid)
+    n, m = node.board.n, node.board.m  # Block dimensions
+
+    def get_neighbors(row: int, col: int):
+        """
+        Get all neighboring cells (including diagonals) for a given cell within the board boundaries.
+
+        Parameters:
+        row (int): Row index.
+        col (int): Column index.
+
+        Returns:
+        list of tuples: List of (row, col) indices of neighboring cells.
+        """
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
+                      (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        return [
+            (row + dr, col + dc)
+            for dr, dc in directions
+            if 0 <= row + dr < N and 0 <= col + dc < N
+        ]
+
+    def empty_cells_in_region(cells) -> int:
+        """
+        Count the number of empty cells in a given list of cells.
+
+        Parameters:
+        cells (list of tuples): List of (row, col) indices.
+
+        Returns:
+        int: Number of empty cells.
+        """
+        return sum(1 for r, c in cells if node.board.get((r, c)) == 0)
+
+    def occupied_neighbors(cells, occupied_squares) -> bool:
+        """
+        Check if any empty cell in the given cells has a neighbor in occupied_squares.
+
+        Parameters:
+        cells (list of tuples): List of (row, col) indices.
+        occupied_squares (set): Set of (row, col) indices occupied by a player.
+
+        Returns:
+        bool: True if any empty cell has an occupied neighbor, False otherwise.
+        """
+        for r, c in cells:
+            if node.board.get((r, c)) == 0:  # Only check empty cells
+                for neighbor in get_neighbors(r, c):
+                    if neighbor in occupied_squares:
+                        return True
         return False
 
+    def get_row_cells(row: int):
+        """
+        Get all cell indices in a given row.
 
-def weights_at_game_stage(node):
-    ''' We want to divide the game into three stages. start (0), mid (1), end (2)'''
+        Parameters:
+        row (int): Row index.
 
-    nr_total_squares = node.board.N ** 2
-    nr_empty_squares = nr_total_squares - len(node.occupied_squares1) - len(node.occupied_squares2)
-    proportion_of_empty_cells = nr_empty_squares / nr_total_squares
+        Returns:
+        list of tuples: List of (row, col) indices.
+        """
+        return [(row, c) for c in range(N)]
 
-    if proportion_of_empty_cells >= 0.7:
-        stage = 0
-        weights = 0.1, 0.1, 0.4, 0.4
-    elif 0.3 < proportion_of_empty_cells < 0.7:
-        stage = 1
-        weights = 0.1, 0.3, 0.3, 0.3
-    else:  # proportion_of_empty_cells <= 0.3
-        stage = 2
-        weights = 0.4, 0.4, 0.1, 0.1
+    def get_col_cells(col: int):
+        """
+        Get all cell indices in a given column.
 
-    return stage, weights
+        Parameters:
+        col (int): Column index.
 
+        Returns:
+        list of tuples: List of (row, col) indices.
+        """
+        return [(r, col) for r in range(N)]
 
-def calculate_score_differential(node):
-    ''' Calculates the current score differential, so our points - points of opponent. '''
+    def get_block_cells(block_row: int, block_col: int):
+        """
+        Get all cell indices in a given block.
 
-    return node.scores[node.my_player - 1] - node.scores[1-(node.my_player - 1)]
+        Parameters:
+        block_row (int): Block row index.
+        block_col (int): Block column index.
 
+        Returns:
+        list of tuples: List of (row, col) indices.
+        """
+        return [
+            (r, c)
+            for r in range(block_row * m, (block_row + 1) * m)
+            for c in range(block_col * n, (block_col + 1) * n)
+        ]
 
-def positively_evaluate_mobility(node):
-    ''' Takes as input the game state and looks how many moves our agent can play. If it is not
-    our move we make a null-move, i.e. we copy the GameState and change the current_player, so we
-    can check how many adjacient squares we obtain to make a move in the future. '''
+    # Define players' occupied squares
+    player_occupied = (
+        node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2
+    )
+    opponent_occupied = (
+        node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1
+    )
 
-    if node.my_player == node.current_player: # if it is our turn
-        return len(node.player_squares())
-    
-    else: # if it is not our turn
-        simulated_state = copy.deepcopy(node)
-        simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our player to move
-        return len(simulated_state.player_squares())
+    score_one_empty = 0
 
-    
-def negatively_evaluate_opponent_mobility(node):
-    """
-    Evaluates the opponent's mobility to identify opportunities to limit their moves.
+    def process_region(cells):
+        """
+        Process a region (row, column, or block) and update the score if it has exactly one empty cell.
 
-    Returns a lower score if the opponent has more mobility (since we want to minimize it).
-    """
-    if node.my_player == node.current_player: # if it is our turn
-        simulated_state = copy.deepcopy(node)
-        simulated_state.current_player = 3 - node.current_player # make a copy of the game state with our opponent to move
-        return -len(simulated_state.player_squares())
-    
-    else: # if it is not our turn
-        return -len(node.player_squares())
-
-
-def evaluate_central_control(node):
-    """
-    Evaluate the score of cell that are more central on the board
-    """
-    N = node.board.N
-
-    # cell_scores = bullseye_centrality_score_division_over_board(N)
-    # cell_scores = corridor_centrality_score_division_over_board(N)
-
-    bullseye_scores = bullseye_centrality_score_division_over_board(N)
-    corridor_scores = corridor_centrality_score_division_over_board(N)
-    combined_scores = [[bullseye_scores[i][j] + corridor_scores[i][j] for j in range(N)] for i in range(N)]
-
-    # print board centrality values
-    # for row in combined_scores:
-    #     print(row)
-
-    # Now, sum up the scores for the player's controlled cells
-    control_score = 0
-    occupied_squares = node.occupied_squares()  # or []
-
-    # Add control score when you occupy cells in the middle
-    for square in occupied_squares:
-        i, j = square
-        control_score += combined_scores[i][j]
-
-    return control_score
-
-
-def corridor_centrality_score_division_over_board(N, middle_value=2):
-    '''Awards points to two or three central columns, and zero to other columns'''
-    # Initialize the scoring matrix with zeros
-    cell_scores = [[0 for _ in range(N)] for _ in range(N)]
-    
-    # Determine middle columns
-    if N % 2 == 1:
-        # Odd N, middle columns are at N//2 -1, N//2, N//2 + 1
-        middle_cols = [N // 2 - 1, N // 2, N // 2 + 1]
-    else:
-        # Even N, middle columns are at N//2 - 1 and N//2
-        middle_cols = [N // 2 - 1, N // 2]
-    
-    # Assign the middle_value to the middle columns
-    for i in range(N):
-        for j in middle_cols:
-            cell_scores[i][j] = middle_value
-
-    # print board centrality values
-    # for row in cell_scores:
-    #     print(row)
-    
-    return cell_scores
-
-
-def bullseye_centrality_score_division_over_board(N, outer_ring_value=0, ring_value_step=1, central_cell_value_step=2):
-    '''awards extra points in rings. Outer ring is zero points, then 1 extra value for ring inside, and 2 extra for center ring/cell'''
-    center = N // 2
-    max_ring = center  # Number of rings from outer ring to center
-
-    # Create a matrix to hold scores for each cell
-    cell_scores = [[0 for _ in range(N)] for _ in range(N)]
-    
-    for i in range(N):
-        for j in range(N):
-            # Calculate the ring index for cell (i, j)
-            ring = min(i, j, N - 1 - i, N - 1 - j)
-            
-            if N % 2 == 1 and ring == max_ring:
-                # Center cell for odd N
-                score = outer_ring_value + ring_value_step * (ring - 1) + central_cell_value_step
-            elif N % 2 == 0 and (ring == max_ring - 1 or ring == max_ring):
-                # Central cells for even N
-                score = outer_ring_value + ring_value_step * (max_ring - 1) + central_cell_value_step
+        Parameters:
+        cells (list of tuples): List of (row, col) indices in the region.
+        """
+        nonlocal score_one_empty
+        if empty_cells_in_region(cells) == 1:
+            if node.current_player == node.my_player:
+                if occupied_neighbors(cells, opponent_occupied) and occupied_neighbors(
+                    cells, player_occupied
+                ):
+                    score_one_empty += 1
             else:
-                score = outer_ring_value + ring_value_step * ring
-            
-            cell_scores[i][j] = score
+                if occupied_neighbors(cells, opponent_occupied):
+                    score_one_empty -= 1
 
-    # print board centrality values
-    # for row in cell_scores:
-    #     print(row)
+    # Check rows and columns
+    for i in range(N):
+        process_region(get_row_cells(i))
+        process_region(get_col_cells(i))
 
-    return cell_scores
+    # Check blocks
+    for block_row in range(n):
+        for block_col in range(m):
+            process_region(get_block_cells(block_row, block_col))
 
-
-# def evaluate_self_connectivity(game_state: GameState) -> float:
-#     """
-#     Evaluates the connectivity of the current player's own accessible squares.
-    
-#     Returns a lower score when the player's accessible squares are fragmented.
-#     """
-#     player_squares = game_state.player_squares()
-    
-#     if not player_squares:
-#         # No moves available; extremely bad state
-#         return -float('inf')
-    
-#     # Build a graph of player's accessible squares
-#     graph = build_accessible_squares_graph(game_state, player_squares)
-    
-#     # Find connected components
-#     connected_components = find_connected_components(graph, player_squares)
-    
-#     # Evaluate fragmentation
-#     num_components = len(connected_components)
-#     largest_component_size = max(len(component) for component in connected_components)
-    
-#     # Lower score for more components and smaller largest component
-#     fragmentation_score = - (num_components * 10 - largest_component_size)
-#     return fragmentation_score
+    return score_one_empty
 
 
-# import copy
-# from collections import deque
+def calc_score_center_moves(node) -> float:
+    """
+    Calculate a score based on the proximity of the player's occupied squares to the center of the board.
 
-# def evaluate_opponent_connectivity(game_state: GameState) -> float:
-#     """
-#     Evaluates the degree to which the opponent's allowed squares are fragmented.
-    
-#     Returns a higher score when the opponent's accessible squares are more disconnected.
-#     """
-#     opponent_state = copy.deepcopy(game_state)
-#     opponent_state.current_player = 2 if game_state.current_player == 1 else 1
-#     opponent_squares = opponent_state.player_squares()
-    
-#     if not opponent_squares:
-#         # No moves available to opponent; maximum disconnection
-#         return float('inf')
-    
-#     # Build a graph of opponent's accessible squares
-#     graph = build_accessible_squares_graph(opponent_state, opponent_squares)
-    
-#     # Find connected components
-#     connected_components = find_connected_components(graph, opponent_squares)
-    
-#     # Evaluate fragmentation
-#     num_components = len(connected_components)
-#     largest_component_size = max(len(component) for component in connected_components)
-    
-#     # Higher score for more components and smaller largest component
-#     fragmentation_score = num_components * 10 - largest_component_size
-#     return fragmentation_score
+    Parameters:
+    node (Node): The current game state.
+
+    Returns:
+    float: The score difference between the current player and the opponent.
+    """
+    N = node.board.N  # Board size (N x N grid)
+    center_row = (N + 1) / 2  # Center point 2 after middle row
+    center_col = (N - 1) / 2 # center point is middle col
+    def distance_to_center(row: int, col: int) -> float:
+        """
+        Calculate the weighted distance of a cell to the center of the board.
+
+        Parameters:
+        row (int): Row index.
+        col (int): Column index.
+
+        Returns:
+        float: Weighted distance to the center.
+        """
+        row_weight = 0.99  # Weight for row distance
+        col_weight = 0.01  # Weight for column distance
+        return ((row_weight * (row - center_row)) ** 2 + (col_weight * (col - center_col)) ** 2) ** 0.5
+
+    def calculate_player_score(occupied_squares) -> float:
+        """
+        Calculate the proximity score for a player based on their occupied squares.
+
+        Parameters:
+        occupied_squares (list of tuples): List of (row, col) indices occupied by the player.
+
+        Returns:
+        float: The proximity score.
+        """
+        proximity_score = 0
+        for row, col in occupied_squares:
+            proximity_score += max(0, N - distance_to_center(row, col))  # Reward closer cells
+        return proximity_score / N
+
+    # Get scores for both players based on their occupied squares
+    player1_score = calculate_player_score(node.occupied_squares1)
+    player2_score = calculate_player_score(node.occupied_squares2)
+
+    # Return the evaluation from the perspective of the current player
+    if node.my_player == 1:
+        return player1_score - player2_score
+    else:
+        return player2_score - player1_score
 
 
-# def build_accessible_squares_graph(game_state: GameState, accessible_squares: List[Square]) -> Dict[Square, List[Square]]:
-#     """
-#     Builds a graph where nodes are accessible squares for the opponent, and edges connect adjacent squares.
-#     """
-#     graph = {square: [] for square in accessible_squares}
-#     N = game_state.board.N
-    
-#     for square in accessible_squares:
-#         row, col = square
-#         # Check all adjacent squares (orthogonally and diagonally)
-#         for dr in (-1, 0, 1):
-#             for dc in (-1, 0, 1):
-#                 if dr == 0 and dc == 0:
-#                     continue
-#                 r, c = row + dr, col + dc
-#                 neighbor = (r, c)
-#                 if 0 <= r < N and 0 <= c < N and neighbor in accessible_squares:
-#                     graph[square].append(neighbor)
-#     return graph
+def calculate_score_difference(node) -> float:
+    """
+    Calculate the score difference between the current player and the opponent.
+
+    Parameters:
+    node (Node): The current game state.
+
+    Returns:
+    float: The score difference.
+    """
+    my_index = node.my_player - 1
+    opponent_index = 1 - my_index
+    return node.scores[my_index] - node.scores[opponent_index]
 
 
-# def find_connected_components(graph: Dict[Square, List[Square]], nodes: List[Square]) -> List[List[Square]]:
-#     """
-#     Finds connected components in the graph using BFS.
-#     """
-#     visited = set()
-#     components = []
-    
-#     for node in nodes:
-#         if node not in visited:
-#             component = []
-#             queue = deque([node])
-#             visited.add(node)
-#             while queue:
-#                 current = queue.popleft()
-#                 component.append(current)
-#                 for neighbor in graph[current]:
-#                     if neighbor not in visited:
-#                         visited.add(neighbor)
-#                         queue.append(neighbor)
-#             components.append(component)
-#     return components
+def evaluate_node(node) -> float:
+    """
+    Evaluate the given node and return a heuristic score.
 
+    Parameters:
+    node (Node): The current game state.
+
+    Returns:
+    float: The evaluation score.
+    """
+    # Calculate the score difference between players
+    score_diff_game = calculate_score_difference(node)
+
+    # Calculate score based on proximity to the center
+    score_center = calc_score_center_moves(node)
+
+    # Determine the number of occupied squares by the current player
+    num_occupied = len(node.occupied_squares1) if node.my_player == 1 else len(node.occupied_squares2)
+
+    # Early game evaluation
+    if num_occupied <= node.board.n-1:
+        eval_func = score_diff_game + 2 * score_center
+        return eval_func
+
+    # Mid to late game evaluation
+    score_one_empty = score_one_empty_in_region(node)
+    score_mobility = calculate_mobility(node)
+
+    eval_func = score_diff_game + score_mobility + score_one_empty + score_center
+
+    return eval_func
 

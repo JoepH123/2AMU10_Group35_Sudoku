@@ -4,7 +4,8 @@ import math
 
 class SudokuSolver:
     """
-    Our own sudoku solver implementation. The goal of this is to compute a completed sudoku once every round. This provides two benefits:
+    Our own sudoku solver implementation. This solver uses the assumption that the sudoku is not yet violated and is still solvable, as this would otherwise be recognized by the Oracle. 
+    The goal of this is to compute a completed sudoku once every round. This provides two benefits:
 
     1. We don't need to try different numbers in the same cell, therefore the number of possible moves strongly decreases. Since the number, as long as they are valid,
        don't really matter, we might as well just have a single correct number for each cell, which are used during the minimax 'simulation'. Since there are less possible
@@ -22,32 +23,33 @@ class SudokuSolver:
         self.n = n  # Number of columns in a block
         self.board = board[:]  # Make a copy of the board
         self.cells = [(i, j) for i in range(N) for j in range(N)]
-        # Precompute rows, columns, and blocks
-        self.rows = [set() for _ in range(N)]
-        self.cols = [set() for _ in range(N)]
-        self.blocks = [set() for _ in range(N)]
+        # Initialize the rows, columns, and blocks --> we could also use lists, with their index, but dictionary has clearer key-value structure)
+        self.rows = {row_index: set() for row_index in range(N)}
+        self.cols = {col_index: set() for col_index in range(N)}
+        self.blocks = {block_index: set() for block_index in range(N)}  # The board is always made up of N blocks (e.g. (N/m) * (N/n) = n * m = N)
         self._initialize()
 
     def _initialize(self):
-        """Initialize the sets for rows, columns, and blocks based on the initial board"""
+        """
+        Initialize the sets for rows, columns, and blocks based on the initial board. 
+        """
         for index, value in enumerate(self.board):  # go through all cells of the board
             if value != 0:  # if the value is not zero
-                # We maintain lists for the rows, cols and blocks () 
+                # We maintain dictionaries for the rows, columns and blocks. They all have indices and values 
                 row, col = divmod(index, self.N)
                 block = self._get_block(row, col)
-                # if value in self.rows[row]:
-                #     raise ValueError(f"Duplicate value {value} found in row {row}.")
-                # if value in self.cols[col]:
-                #     raise ValueError(f"Duplicate value {value} found in column {col}.")
-                # if value in self.blocks[block]:
-                #     raise ValueError(f"Duplicate value {value} found in block {block}.")
-                self.rows[row].add(value)
+                # Add current values of the board to the sets of the correct rows, column and block
+                self.rows[row].add(value) 
                 self.cols[col].add(value)
                 self.blocks[block].add(value)
 
     def _get_block(self, row, col):
-        """Get the block index for a given cell"""
-        return (row // self.m) * self.n + (col // self.n)
+        """
+        Get the block index for a given cell. (row // self.m) is the block-row and (col // self.n) is the block-column. 
+        In a m=2 and n=3 board, N=9, then second block of the second row of blocks is the middle block. Index = (2 // 2) * 3 + (3 // 2) = 1 * 3 + 1 = 4. 
+        Since we start counting at 0 this middle block is indeed the fifth block. 
+        """
+        return (row // self.m) * self.n + (col // self.n) 
 
     def _find_empty_cell(self):
         """Find the next empty cell using the MRV heuristic"""
@@ -97,16 +99,16 @@ class SudokuSolver:
 
             # Backtrack
             self.board[index] = 0
-            self.rows[row].remove(num)
-            self.cols[col].remove(num)
-            self.blocks[block].remove(num)
+            self.rows[row] = 0
+            self.cols[col] = 0
+            self.blocks[block] = 0
 
         return False  # Trigger backtracking
 
     def get_board_as_dict(self):
         """Return the solved board as a dictionary with (i, j) as keys and the solved numbers as values"""
         if not self.solve():
-            raise ValueError("Sudoku no longer solvable (should be notified by the Oracle)")
+            raise ValueError("Sudoku no longer solvable (should be notified by the Oracle, so in practice does not occur)")
         return {(i, j): self.board[i * self.N + j] for i in range(self.N) for j in range(self.N)}
     
 
