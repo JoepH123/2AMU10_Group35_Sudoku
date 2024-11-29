@@ -26,22 +26,12 @@ class NodeGameState(GameState):
         self.last_move = last_move
         self.my_player = my_player
 
-    def hash_key(self):
-        """
-        Generate a unique hash key for this node.
-
-        This could be based on a serialized representation of the board state,
-        current player, and other relevant attributes.
-        """
-        return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
-
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
     def __init__(self):
         """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
-        self.transposition_table = {}
 
 
     def evaluate(self, node):
@@ -290,9 +280,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         return all_game_states
 
+
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
         """
-        Perform the Minimax algorithm with Alpha-Beta pruning and transposition table.
+        Perform the Minimax algorithm with Alpha-Beta pruning.
 
         Parameters:
         - node (NodeGameState): The current game state.
@@ -304,40 +295,29 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - float: The evaluated score of the node.
         """
-        node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
-        # Check if this state has been evaluated
-        if node_key in self.transposition_table:
-            #print(node_key)
-            return self.transposition_table[node_key]
-
         # Base case: If maximum depth is reached or game state is terminal
         if depth == 0 or self.is_terminal(node):
-            score = self.evaluate(node)
-            self.transposition_table[node_key] = score
-            return score
+            return self.evaluate(node)
 
         if is_maximizing_player:
             max_eval = float('-inf')
-            max_children = self.get_children(node)
-            for child in max_children:
+            for child in self.get_children(node):
                 eval_score = self.minimax(child, depth - 1, False, alpha, beta)
                 max_eval = max(max_eval, eval_score)
                 alpha = max(alpha, eval_score)
                 if beta <= alpha:
                     break  # Alpha-Beta Pruning
-            self.transposition_table[node_key] = max_eval
             return max_eval
         else:
             min_eval = float('inf')
-            min_children = self.get_children(node)
-            for child in min_children:
+            for child in self.get_children(node):
                 eval_score = self.minimax(child, depth - 1, True, alpha, beta)
                 min_eval = min(min_eval, eval_score)
                 beta = min(beta, eval_score)
                 if beta <= alpha:
                     break  # Alpha-Beta Pruning
-            self.transposition_table[node_key] = min_eval
             return min_eval
+
 
     def compute_best_move(self, game_state):
         """
@@ -346,23 +326,30 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Parameters:
         - game_state (GameState): The current game state.
         """
-
         best_value = float('-inf')
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
 
+        # propose initial random move
         all_moves = self.get_all_moves(root_node)
-        self.propose_move(random.choice(all_moves))  # Propose initial random move
+        self.propose_move(random.choice(all_moves))
 
         children = self.get_children(root_node)
-        # Perform iterative deepening
-        for depth in range(10):
+        # Evaluate immediate moves
+        for child in children:
+            child.root_move = child.last_move
+            move_value = self.evaluate(child)
+            if move_value > best_value:
+                best_value = move_value
+                best_move = child.root_move
+                self.propose_move(best_move)
+        #print('depth', 1, 'done','#############################################')
+        # Perform deeper search
+        for depth in range(1, 10):
             for child in children:
-                child.root_move = child.last_move
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
                 if move_value > best_value:
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
-            print('depth', depth+1, 'done','#############################################')
-
+            #print('depth', depth+1, 'done','#############################################')
