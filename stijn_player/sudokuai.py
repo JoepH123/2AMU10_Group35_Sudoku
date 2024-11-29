@@ -355,9 +355,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         self.propose_move(random.choice(all_moves))  # Propose initial random move
 
         children = self.get_children(root_node)
-        for child in children:
-            child.root_move = child.last_move
-
         # Perform iterative deepening
         for depth in range(10):
             for child in children:
