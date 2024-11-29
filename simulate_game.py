@@ -170,7 +170,7 @@ def simulate_game(game_state: GameState,
                         print(f'Error: {best_move} is not a legal move. Player {3-player_number} wins the game.')
                         return (0, 1) if player_number == 1 else (1, 0)
                     if 'has no solution' in output:
-                        log(f'The sudoku has no solution after the move {best_move}.')
+                        log(f'The sudoku has no solution after the move {best_move}.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
                         player_score = 0
                         game_state.moves.append(TabooMove(square, value))
                         game_state.taboo_moves.append(TabooMove(square, value))

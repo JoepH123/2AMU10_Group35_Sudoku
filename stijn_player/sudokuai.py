@@ -8,6 +8,7 @@ import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .evaluate_functions import evaluate_node
+from .sudoku_solver import SudokuSolver
 
 
 class NodeGameState(GameState):
@@ -25,6 +26,10 @@ class NodeGameState(GameState):
         self.root_move = root_move
         self.last_move = last_move
         self.my_player = my_player
+        # Given input board find valid values for all cells, using a sudoku solver
+        solver = SudokuSolver(game_state.board.squares, game_state.board.N, game_state.board.m, game_state.board.n)
+        solved_board_dict = solver.get_board_as_dict()
+        self.solved_board_dict = solved_board_dict
 
     def hash_key(self):
         """
@@ -168,7 +173,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return True
 
 
-    def get_all_moves(self, node):
+    def get_all_moves(self, node, solved_board_dict):
         """
         Generate all possible valid moves for the current player.
 
@@ -178,16 +183,9 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - list of Move: A list of all valid moves.
         """
-
-        N = node.board.N
         player_squares = node.player_squares()
-        all_moves = [Move(coordinates, value)
-                     for coordinates in player_squares
-                     for value in range(1, N + 1)
-                     if TabooMove(coordinates, value) not in node.taboo_moves
-                     and self.respects_rule_C0(node, coordinates[0], coordinates[1], value)]
+        all_moves = [Move(coordinates, solved_board_dict[coordinates]) for coordinates in player_squares]
         return all_moves
-
 
     def calculate_move_score(self, node, move):
         """
@@ -259,7 +257,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - list of NodeGameState: A list of successor game states.
         """
-        all_moves = self.get_all_moves(node)
+        all_moves = self.get_all_moves(node, node.solved_board_dict)
         all_game_states = []
 
         if not all_moves:
@@ -319,6 +317,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         if is_maximizing_player:
             max_eval = float('-inf')
             max_children = self.get_children(node)
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
             for child in max_children:
                 eval_score = self.minimax(child, depth - 1, False, alpha, beta)
                 max_eval = max(max_eval, eval_score)
@@ -330,6 +329,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         else:
             min_eval = float('inf')
             min_children = self.get_children(node)
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
             for child in min_children:
                 eval_score = self.minimax(child, depth - 1, True, alpha, beta)
                 min_eval = min(min_eval, eval_score)
@@ -351,12 +351,13 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
 
-        all_moves = self.get_all_moves(root_node)
+        all_moves = self.get_all_moves(root_node, root_node.solved_board_dict)
         self.propose_move(random.choice(all_moves))  # Propose initial random move
 
         children = self.get_children(root_node)
         # Perform iterative deepening
         for depth in range(10):
+            counter_nodes=0
             for child in children:
                 child.root_move = child.last_move
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
@@ -364,5 +365,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_value = move_value
                     best_move = child.root_move
                     self.propose_move(best_move)
+                counter_nodes+=1
+                #print(counter_nodes)
             print('depth', depth+1, 'done','#############################################')
 
