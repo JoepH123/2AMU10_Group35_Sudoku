@@ -255,7 +255,7 @@ def evaluate_node(node) -> float:
 
     # Early game evaluation
     if num_occupied <= node.board.n-1:
-        eval_func = score_diff_game + 2 * score_center
+        eval_func = score_diff_game + 20 * score_center
         return eval_func
 
     # Mid to late game evaluation

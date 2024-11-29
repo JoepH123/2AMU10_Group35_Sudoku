@@ -7,8 +7,9 @@ import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
-from .evaluate_functions import evaluate_node
+from .evaluate_functions import evaluate_node, calculate_mobility, calculate_score_difference
 from .sudoku_solver import SudokuSolver
+import heapq
 
 
 class NodeGameState(GameState):
@@ -303,7 +304,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         - float: The evaluated score of the node.
         """
         node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
-        # Check if this state has been evaluated
+        #Check if this state has been evaluated
         if node_key in self.transposition_table:
             #print(node_key)
             return self.transposition_table[node_key]
@@ -314,11 +315,13 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             self.transposition_table[node_key] = score
             return score
 
+        children = self.get_children(node)
+        children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=is_maximizing_player)
+
         if is_maximizing_player:
             max_eval = float('-inf')
-            max_children = self.get_children(node)
             #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-            for child in max_children:
+            for child in children:
                 eval_score = self.minimax(child, depth - 1, False, alpha, beta)
                 max_eval = max(max_eval, eval_score)
                 alpha = max(alpha, eval_score)
@@ -328,9 +331,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return max_eval
         else:
             min_eval = float('inf')
-            min_children = self.get_children(node)
             #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-            for child in min_children:
+            for child in children:
                 eval_score = self.minimax(child, depth - 1, True, alpha, beta)
                 min_eval = min(min_eval, eval_score)
                 beta = min(beta, eval_score)
@@ -338,6 +340,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     break  # Alpha-Beta Pruning
             self.transposition_table[node_key] = min_eval
             return min_eval
+
 
     def compute_best_move(self, game_state):
         """
@@ -355,6 +358,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         self.propose_move(random.choice(all_moves))  # Propose initial random move
 
         children = self.get_children(root_node)
+        children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=True)
         # Perform iterative deepening
         for depth in range(10):
             counter_nodes=0
@@ -366,6 +370,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     best_move = child.root_move
                     self.propose_move(best_move)
                 counter_nodes+=1
-                #print(counter_nodes)
+                print(counter_nodes)
             print('depth', depth+1, 'done','#############################################')
+
+    def partial_evaluate(self, node):
+        score = calculate_score_difference(node)
+
+        return score #+ calculate_mobility(node)
 
