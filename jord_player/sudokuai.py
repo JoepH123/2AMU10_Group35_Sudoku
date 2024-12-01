@@ -9,6 +9,7 @@ from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .Jordseval import evaluate_board
 
+
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
         """
@@ -31,6 +32,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         super().__init__()
         self.killer_moves = {}  # Dictionary to store killer moves for each depth
         self.nodes_explored = 0  # Add this line to initialize the counter
+        self.killer_move_cutoffs = 0  # Teller voor killer move cutoffs
+        self.total_cutoffs = 0  
 
     def evaluate(self, node):
         """
@@ -397,7 +400,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     def compute_best_move(self, game_state: GameState) -> None:
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
-        max_depth = 3  # Adjust as needed
+        max_depth = 30  # Adjust as needed
 
         self.nodes_explored = 0  # Reset the counter before the search
 
@@ -413,7 +416,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 if move_value > best_value:
                     best_value = move_value
                     best_move = move
-            self.propose_move(best_move)
+                    self.propose_move(best_move)
             print(f'Depth {depth} search complete.')
             print(f'Nodes explored at depth {depth}: {self.nodes_explored}')
             self.nodes_explored = 0  # Reset if tracking per depth
