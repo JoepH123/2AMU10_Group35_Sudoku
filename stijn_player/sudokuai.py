@@ -64,66 +64,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         """
         return evaluate_node(node)
 
-
-    def is_valid_move_possible(self, node):
-        """
-        Check if there is at least one valid move possible for the current player.
-
-        Parameters:
-        - node (NodeGameState): The current game state.
-
-        Returns:
-        - bool: True if at least one valid move is possible, False otherwise.
-        """
-        board = node.board
-        N = board.N  # Size of the grid (N = n * m)
-        n, m = board.n, board.m  # Block dimensions
-
-
-        def is_value_valid(row, col, value):
-            """
-            Check if placing 'value' at position (row, col) is valid according to Sudoku rules.
-
-            Parameters:
-            - row (int): Row index.
-            - col (int): Column index.
-            - value (int): The value to place.
-
-            Returns:
-            - bool: True if the move is valid, False otherwise.
-            """
-            # Calculate the starting indices of the block
-            block_start_row = (row // m) * m
-            block_start_col = (col // n) * n
-
-            for i in range(N):
-                # Check row
-                if board.get((row, i)) == value:
-                    return False
-
-                # Check column
-                if board.get((i, col)) == value:
-                    return False
-
-                # Check block
-                block_row = block_start_row + (i // n)
-                block_col = block_start_col + (i % n)
-                if board.get((block_row, block_col)) == value:
-                    return False
-
-            return True
-
-        # Iterate over all empty cells on the board
-        for row in range(N):
-            for col in range(N):
-                if board.get((row, col)) == SudokuBoard.empty:  # Empty cell
-                    # Check if any value (1 to N) can be placed in this cell
-                    for value in range(1, N + 1):
-                        if is_value_valid(row, col, value):
-                            return True  # Found at least one valid move
-
-        return False  # No valid moves found
-
     def is_terminal(self, node):
         """
         Determine if the game has reached a terminal state (no valid moves left).
@@ -134,46 +74,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - bool: True if the game is over, False otherwise.
         """
-        return not self.is_valid_move_possible(node)
-
-
-    def respects_rule_C0(self, node, row, col, value):
-        """
-        Check if placing 'value' at (row, col) respects the basic Sudoku rules (no duplicates in row, column, block).
-
-        Parameters:
-        - node (NodeGameState): The current game state.
-        - row (int): Row index.
-        - col (int): Column index.
-        - value (int): The value to place.
-
-        Returns:
-        - bool: True if the move respects the rules, False otherwise.
-        """
-        board = node.board
-        N = board.N  # Size of the grid (N = n * m)
-        n, m = board.n, board.m  # Block dimensions
-
-        # Calculate the starting indices of the block
-        block_start_row = (row // m) * m
-        block_start_col = (col // n) * n
-
-        for i in range(N):
-            # Check row
-            if board.get((row, i)) == value:
-                return False
-
-            # Check column
-            if board.get((i, col)) == value:
-                return False
-
-            # Check block
-            block_row = block_start_row + (i // n)
-            block_col = block_start_col + (i % n)
-            if board.get((block_row, block_col)) == value:
-                return False
-
-        return True
+        N=node.board.N
+        return len(node.occupied_squares1)+len(node.occupied_squares2)==N*N #not self.is_valid_move_possible(node)
 
 
     def get_all_moves(self, node):
@@ -280,7 +182,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return new_node
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
-        self.nodes_explored += 1
         """
         Perform the Minimax algorithm with Alpha-Beta pruning.
 
@@ -294,9 +195,9 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - float: The evaluated score of the node.
         """
+        self.nodes_explored += 1
         node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
         if node_key in self.transposition_table:
-            #print(node_key)
             return self.transposition_table[node_key]
 
         # Base case: If maximum depth is reached or game state is terminal
