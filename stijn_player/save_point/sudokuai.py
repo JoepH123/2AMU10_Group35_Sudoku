@@ -9,7 +9,7 @@ from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .evaluate_functions import evaluate_node, calculate_mobility, calculate_score_difference
 from .sudoku_solver import SudokuSolver
-from .hard_coded_moves import opening_game_phase_moves
+import heapq
 
 
 class NodeGameState(GameState):
@@ -48,8 +48,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
         self.transposition_table = {}
-        self.killer_moves = {i: [] for i in range(10)}  # Dictionary to store killer moves for each depth
-        self.nodes_explored = 0  # Add this line to initialize the counter
 
 
     def evaluate(self, node):
@@ -176,7 +174,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return True
 
 
-    def get_all_moves(self, node):
+    def get_all_moves(self, node, solved_board_dict):
         """
         Generate all possible valid moves for the current player.
 
@@ -187,7 +185,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         - list of Move: A list of all valid moves.
         """
         player_squares = node.player_squares()
-        all_moves = [Move(coordinates, node.solved_board_dict[coordinates]) for coordinates in player_squares]
+        all_moves = [Move(coordinates, solved_board_dict[coordinates]) for coordinates in player_squares]
         return all_moves
 
     def calculate_move_score(self, node, move):
@@ -250,39 +248,50 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return 0  # No regions completed
 
 
-
-
-    def apply_move(self, node, move):
+    def get_children(self, node):
         """
-        Apply a move to a node and return the resulting child node.
+        Generate all possible successor game states from the current node.
 
         Parameters:
         - node (NodeGameState): The current game state.
-        - move (Move): The move to apply.
 
         Returns:
-        - NodeGameState: The new game state after applying the move.
+        - list of NodeGameState: A list of successor game states.
         """
-        new_node = copy.deepcopy(node)
-        new_node.last_move = move
-        new_node.board.put(move.square, move.value)
-        new_node.moves.append(move)
-        # Update the score for the current player
-        score = self.calculate_move_score(new_node, move)
-        new_node.scores[new_node.current_player - 1] += score
-        # Update occupied squares and switch player
-        if new_node.current_player == 1:
-            new_node.occupied_squares1.append(move.square)
-            new_node.current_player = 2
-        else:
-            new_node.occupied_squares2.append(move.square)
-            new_node.current_player = 1
-        return new_node
+        all_moves = self.get_all_moves(node, node.solved_board_dict)
+        all_game_states = []
+
+        if not all_moves:
+            # No valid moves; pass the turn to the next player
+            new_node = copy.deepcopy(node)
+            new_node.current_player = 3 - new_node.current_player  # Switch player
+            all_game_states.append(new_node)
+            return all_game_states
+
+        for move in all_moves:
+            new_node = copy.deepcopy(node)
+            new_node.last_move = move
+            new_node.board.put(move.square, move.value)
+            new_node.moves.append(move)
+            # Update the score for the current player
+            score = self.calculate_move_score(new_node, move)
+            new_node.scores[new_node.current_player - 1] += score
+            # Update occupied squares and switch player
+
+            if new_node.current_player == 1:
+                new_node.occupied_squares1.append(move.square)
+                new_node.current_player = 2
+
+            else:
+                new_node.occupied_squares2.append(move.square)
+                new_node.current_player = 1
+            all_game_states.append(new_node)
+
+        return all_game_states
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
-        self.nodes_explored += 1
         """
-        Perform the Minimax algorithm with Alpha-Beta pruning.
+        Perform the Minimax algorithm with Alpha-Beta pruning and transposition table.
 
         Parameters:
         - node (NodeGameState): The current game state.
@@ -295,6 +304,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         - float: The evaluated score of the node.
         """
         node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
+        #Check if this state has been evaluated
         if node_key in self.transposition_table:
             #print(node_key)
             return self.transposition_table[node_key]
@@ -305,69 +315,154 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             self.transposition_table[node_key] = score
             return score
 
-        moves = self.get_all_moves(node)
-        prioritized_moves = self.killer_moves[depth] + [move for move in moves if move not in self.killer_moves[depth]]
+        children = self.get_children(node)
+        children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=is_maximizing_player)
 
         if is_maximizing_player:
             max_eval = float('-inf')
-
-            for move in prioritized_moves:
-                child = self.apply_move(node, move)
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+            for child in children:
                 eval_score = self.minimax(child, depth - 1, False, alpha, beta)
                 max_eval = max(max_eval, eval_score)
                 alpha = max(alpha, eval_score)
                 if beta <= alpha:
-                    if move not in self.killer_moves[depth]:
-                        if len(self.killer_moves[depth]) >= 2:  # Keep only two killer moves
-                            self.killer_moves[depth].pop(0)
-                        self.killer_moves[depth].append(move)
                     break  # Alpha-Beta Pruning
             self.transposition_table[node_key] = max_eval
             return max_eval
-
         else:
             min_eval = float('inf')
-
-            for move in prioritized_moves:
-                child = self.apply_move(node, move)
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+            for child in children:
                 eval_score = self.minimax(child, depth - 1, True, alpha, beta)
                 min_eval = min(min_eval, eval_score)
                 beta = min(beta, eval_score)
                 if beta <= alpha:
-                    if move not in self.killer_moves[depth]:
-                        if len(self.killer_moves[depth]) >= 2:  # Keep only two killer moves
-                            self.killer_moves[depth].pop(0)
-                        self.killer_moves[depth].append(move)
                     break  # Alpha-Beta Pruning
             self.transposition_table[node_key] = min_eval
             return min_eval
 
-    def compute_best_move(self, game_state: GameState) -> None:
+
+    def compute_best_move(self, game_state):
+        """
+        Compute the best move for the current game state and propose it.
+
+        Parameters:
+        - game_state (GameState): The current game state.
+        """
+
+        best_value = float('-inf')
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
 
-        self.nodes_explored = 0  # Reset the counter before the search
-        all_moves = self.get_all_moves(root_node)
-        self.propose_move(random.choice(all_moves))
+        all_moves = self.get_all_moves(root_node, root_node.solved_board_dict)
+        self.propose_move(random.choice(all_moves))  # Propose initial random move
 
-        opening_move = opening_game_phase_moves(root_node)
-        if opening_move:
-            self.propose_move(opening_move)
-            return
-
-        best_value = float('-inf')
+        children = self.get_children(root_node)
+        children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=True)
+        # Perform iterative deepening
         for depth in range(10):
             counter_nodes=0
-            for move in all_moves:
-                child = self.apply_move(root_node, move)
+            for child in children:
+                child.root_move = child.last_move
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
                 if move_value > best_value:
                     best_value = move_value
-                    best_move = move
+                    best_move = child.root_move
                     self.propose_move(best_move)
                 counter_nodes+=1
-                #print(counter_nodes)
-            print(f'Depth {depth+1} search complete.')
-            print(f'Nodes explored at depth {depth+1}: {self.nodes_explored}')
-            self.nodes_explored = 0  # Reset if tracking per depth
+                print(counter_nodes)
+            print('depth', depth+1, 'done','#############################################')
 
+    def partial_evaluate(self, node):
+        score = calculate_score_difference(node)
+
+        return score #+ calculate_mobility(node)
+
+    def minimax(self, node, depth, is_maximizing_player, alpha, beta):
+        """
+        Perform the Minimax algorithm with Alpha-Beta pruning and transposition table.
+
+        Parameters:
+        - node (NodeGameState): The current game state.
+        - depth (int): The depth limit for the search.
+        - is_maximizing_player (bool): True if it's the maximizing player's turn.
+        - alpha (float): Alpha value for pruning.
+        - beta (float): Beta value for pruning.
+
+        Returns:
+        - float: The evaluated score of the node.
+        """
+        node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
+        #Check if this state has been evaluated
+        if node_key in self.transposition_table:
+            #print(node_key)
+            return self.transposition_table[node_key]
+
+        # Base case: If maximum depth is reached or game state is terminal
+        if depth == 0 or self.is_terminal(node):
+            score = self.evaluate(node)
+            self.transposition_table[node_key] = score
+            return score
+
+        children = self.get_children(node)
+        #children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=is_maximizing_player)
+
+        if is_maximizing_player:
+            max_eval = float('-inf')
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+            for child in children:
+                eval_score = self.minimax(child, depth - 1, False, alpha, beta)
+                max_eval = max(max_eval, eval_score)
+                alpha = max(alpha, eval_score)
+                if beta <= alpha:
+                    break  # Alpha-Beta Pruning
+            self.transposition_table[node_key] = max_eval
+            return max_eval
+        else:
+            min_eval = float('inf')
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+            for child in children:
+                eval_score = self.minimax(child, depth - 1, True, alpha, beta)
+                min_eval = min(min_eval, eval_score)
+                beta = min(beta, eval_score)
+                if beta <= alpha:
+                    break  # Alpha-Beta Pruning
+            self.transposition_table[node_key] = min_eval
+            return min_eval
+
+
+    def compute_best_move(self, game_state):
+        """
+        Compute the best move for the current game state and propose it.
+
+        Parameters:
+        - game_state (GameState): The current game state.
+        """
+
+        best_value = float('-inf')
+        root_node = NodeGameState(game_state)
+        root_node.my_player = root_node.current_player
+
+        all_moves = self.get_all_moves(root_node)
+        self.propose_move(random.choice(all_moves))  # Propose initial random move
+
+        children = self.get_children(root_node)
+        #children.sort(key=lambda order_child: self.partial_evaluate(order_child), reverse=True)
+        # Perform iterative deepening
+        for depth in range(10):
+            counter_nodes=0
+            for child in children:
+                child.root_move = child.last_move
+                move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
+                if move_value > best_value:
+                    best_value = move_value
+                    best_move = child.root_move
+                    self.propose_move(best_move)
+                counter_nodes+=1
+                print(counter_nodes)
+            print('depth', depth+1, 'done','#############################################')
+
+    def partial_evaluate(self, node):
+        score = calculate_score_difference(node)
+        mobility = calculate_mobility(node)
+        return score + mobility

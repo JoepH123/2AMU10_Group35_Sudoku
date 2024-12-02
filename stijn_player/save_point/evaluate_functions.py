@@ -233,20 +233,6 @@ def calculate_score_difference(node) -> float:
     opponent_index = 1 - my_index
     return node.scores[my_index] - node.scores[opponent_index]
 
-def punish_corner(node):
-    if node.my_player ==1:
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        score=0
-        if (0,0) in player_occupied:
-            score = -1000
-        return score
-    if node.my_player ==2:
-        N = node.board.N
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        score=0
-        if (N-1,0) in player_occupied:
-            score = -1000
-        return score
 
 def evaluate_node(node) -> float:
     """
@@ -258,13 +244,25 @@ def evaluate_node(node) -> float:
     Returns:
     float: The evaluation score.
     """
+    # Calculate the score difference between players
     score_diff_game = calculate_score_difference(node)
+
+    # Calculate score based on proximity to the center
     score_center = calc_score_center_moves(node)
+
+    # Determine the number of occupied squares by the current player
+    num_occupied = len(node.occupied_squares1) if node.my_player == 1 else len(node.occupied_squares2)
+
+    # Early game evaluation
+    if num_occupied <= node.board.n-1:
+        eval_func = score_diff_game + 20 * score_center
+        return eval_func
+
+    # Mid to late game evaluation
     score_one_empty = score_one_empty_in_region(node)
     score_mobility = calculate_mobility(node)
-    punish_corner_score = punish_corner(node)
 
-    eval_func = score_diff_game + score_mobility + score_one_empty + score_center + punish_corner_score
+    eval_func = score_diff_game + score_mobility + score_one_empty + score_center
 
     return eval_func
 
