@@ -359,6 +359,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             if killer_move and killer_move in moves:
                 moves.remove(killer_move)
                 moves.insert(0, killer_move)  # Try killer move first
+                print('killer move is',killer_move)
 
             for move in moves:
                 child = self.apply_move(node, move)
@@ -366,6 +367,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 if eval_score > max_eval:
                     max_eval = eval_score
                     if eval_score >= beta:
+  
                         # Update killer move
                         self.killer_moves[depth] = move
                         return max_eval
@@ -373,6 +375,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 if beta <= alpha:
                     break  # Alpha-Beta Pruning
             return max_eval
+        
         else:
             min_eval = float('inf')
             moves = self.get_all_moves(node)
