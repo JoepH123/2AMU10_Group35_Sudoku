@@ -233,19 +233,20 @@ def calculate_score_difference(node) -> float:
     opponent_index = 1 - my_index
     return node.scores[my_index] - node.scores[opponent_index]
 
+
 def punish_corner(node):
     if node.my_player ==1:
         player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
         score=0
         if (0,0) in player_occupied:
-            score = -1000
+            score = -10
         return score
     if node.my_player ==2:
         N = node.board.N
         player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
         score=0
         if (N-1,0) in player_occupied:
-            score = -1000
+            score = -10
         return score
 
 def evaluate_node(node) -> float:
@@ -262,6 +263,9 @@ def evaluate_node(node) -> float:
     score_center = calc_score_center_moves(node)
     score_one_empty = score_one_empty_in_region(node)
     score_mobility = calculate_mobility(node)
+    # if node.board.N <= 4:
+    #     punish_corner_score=0
+    # else:
     punish_corner_score = punish_corner(node)
 
     eval_func = score_diff_game + score_mobility + score_one_empty + score_center + punish_corner_score

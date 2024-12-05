@@ -359,7 +359,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             if killer_move and killer_move in moves:
                 moves.remove(killer_move)
                 moves.insert(0, killer_move)  # Try killer move first
-                print('killer move is',killer_move)
+                #print('killer move is',killer_move)
 
             for move in moves:
                 child = self.apply_move(node, move)
