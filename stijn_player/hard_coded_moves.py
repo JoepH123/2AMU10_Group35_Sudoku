@@ -1,20 +1,43 @@
 from competitive_sudoku.sudoku import Move
-import time
 from collections import deque
+
 def get_heuristic_moves(node):
-    # if node.board.N <= 4:
-    #     return False
+    """
+    Determine the next move based on heuristic strategies.
+
+    Parameters:
+    - node: The current game state node.
+
+    Returns:
+    - A Move object if a valid move is found, else False.
+    """
+    # Determine the squares occupied by the current player.
     current_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+
+    # If the current player has fewer than 2 occupied squares, compute start moves.
     if len(current_player_occupied) < 2:
         return compute_start_moves(node)
+
+    # Attempt to defend the corner if applicable.
     corner_defense = defend_corner(node)
     if corner_defense:
         return corner_defense
+
+    # Attempt to block a region move.
     block_region = get_block_region_move(node)
     if block_region:
         return block_region
 
 def defend_corner(node):
+    """
+    Check and defend a vulnerable corner if the opponent poses a threat.
+
+    Parameters:
+    - node: The current game state node.
+
+    Returns:
+    - A Move object if a defensive move is necessary, else False.
+    """
     N = node.board.N
     if node.my_player == 1:
         if not (node.board.get((0, 0)) == 0 and node.board.get((1, 0)) == 0):
@@ -38,6 +61,15 @@ def defend_corner(node):
     return False
 
 def compute_start_moves(node):
+    """
+    Compute the initial moves for a player based on their current state.
+
+    Parameters:
+    - node: The current game state node.
+
+    Returns:
+    - A Move object for the initial move, or False if no valid move is found.
+    """
     N = node.board.N
     if node.my_player == 1:
         # Define players' occupied squares
@@ -66,15 +98,15 @@ def compute_start_moves(node):
 
 def find_path_player_left(node):
     """
-    Find a path that minimizes the number of empty cells and ensures at most one empty cell.
-    The path can start at the left wall (excluding row 0 and (0, 0)) if Player 1, or at the right wall if Player 2.
-    The path can end at the upper wall, the right wall, or the left wall based on the player's position.
+    Find a paths with 0 or 1 empty cells and player occupied squares.
+    The path starts at the left wall
+    The path can end at the upper wall and the right wall if player 1, or the lower and right wall if player 2.
 
     Parameters:
     - node: The GameState object.
 
     Returns:
-    - A list of tuples representing the empty cells on the path.
+    - A list of paths.
     """
     N = node.board.N  # Board size (N x N grid)
     current_player_occupied = (
@@ -85,7 +117,7 @@ def find_path_player_left(node):
         """
         Check if a cell is valid for inclusion in the path.
         - It must be within bounds.
-        - It must not be a restricted starting cell like (0, 0) or (N-1, N-1).
+        - It must not be a corner
         - It must be empty or occupied by the current player.
         - It must not have been visited before.
         - It must not exceed the maximum empty cell limit.
@@ -171,21 +203,21 @@ def find_path_player_left(node):
     paths = bfs()
     paths = filter_out_subsets(paths, N)
     # Extract and return the empty cells on the best path
-    return paths#[cell for path in paths for cell in path if node.board.get(cell) == 0]
+    return paths
 
 
 
 def find_path_player_right(node):
     """
-    Find a path that minimizes the number of empty cells and ensures at most one empty cell.
-    The path can start at the left wall (excluding row 0 and (0, 0)) if Player 1, or at the right wall if Player 2.
-    The path can end at the upper wall, the right wall, or the left wall based on the player's position.
+    Find a paths with 0 or 1 empty cells and player occupied squares.
+    The path starts at the right wall
+    The path can end at the upper wall if player 1, or the lower wall if player 2.
 
     Parameters:
     - node: The GameState object.
 
     Returns:
-    - A list of tuples representing the empty cells on the path.
+    - A list of paths.
     """
     N = node.board.N  # Board size (N x N grid)
     current_player_occupied = (
@@ -196,7 +228,7 @@ def find_path_player_right(node):
         """
         Check if a cell is valid for inclusion in the path.
         - It must be within bounds.
-        - It must not be a restricted starting cell like (0, 0) or (N-1, N-1).
+        - It must not be a corner
         - It must be empty or occupied by the current player.
         - It must not have been visited before.
         - It must not exceed the maximum empty cell limit.
@@ -283,39 +315,42 @@ def find_path_player_right(node):
     paths = bfs()
     paths = filter_out_subsets(paths, N)
     # Extract and return the empty cells on the best path
-    return paths#[cell for path in paths for cell in path if node.board.get(cell) == 0]
+    return paths
 
 
 def is_valid_region_block(node, path):
     """
-    Check if there are opponent squares in the region under a given path,
-    if the region has 2 or fewer empty cells, and if there is only 1 cell in the start row.
-    The path can have multiple turns, and the region is dynamically calculated.
+    Check if a path satisfies region-blocking conditions:
+    - Region under the path contains opponent squares or too many empty cells.
+    - Path includes at most one cell in starting/ending rows or walls.
 
     Parameters:
     - node: The GameState object.
     - path: A list of tuples representing the cells in the path.
 
     Returns:
-    - True if there are opponent squares in the region or more than 2 empty cells,
-      False otherwise.
+    - True if the path creates a valid block region, False otherwise.
     """
     N = node.board.N  # Board size (N x N grid)
     current_player = node.my_player
     opponent_squares = (
         node.occupied_squares2 if current_player == 1 else node.occupied_squares1
     )
-    invalid_path_set = {(1, 0), (1, 1), (0, 1)}
-    if set(path) == invalid_path_set:
+    invalid_path_set_player1 = {(1, 0), (1, 1), (0, 1)}
+    if set(path) == invalid_path_set_player1:
+        return False
+
+    invalid_path_set_player2 = {(N - 2, 0), (N - 2, 1), (N - 1, 1)}
+    if set(path) == invalid_path_set_player2:
         return False
 
     if len([cell for cell in path if node.board.get(cell) == 0])==0:
         return False
     # Dynamically compute the region under the path
     region = set()
-    start_row_count = 0
+    start_row_count = 0 # Count cells in the start row
     left_wall_count = 0
-    right_wall_count = 0# Count cells in the start row
+    right_wall_count = 0
     for i, (row, col) in enumerate(path):
         # Add all rows below (for Player 1) or above (for Player 2)
         if current_player == 1:
@@ -360,6 +395,16 @@ def is_valid_region_block(node, path):
     return False
 
 def filter_out_subsets(paths, N):
+    """
+    Remove redundant paths (subsets of larger paths) and reintroduce boundary coordinates.
+
+    Parameters:
+    - paths: List of paths to filter.
+    - N: Size of the grid.
+
+    Returns:
+    - Filtered list of paths with reintroduced boundary coordinates.
+    """
     filtered_lists = []
     removed_coords = []
 
@@ -374,7 +419,7 @@ def filter_out_subsets(paths, N):
         filtered_lists.append(new_list)
         removed_coords.append(removed)
 
-    # Step 2: Remove subset lists
+    # remove subset lists
     set_lists = [set(lst) for lst in filtered_lists]
 
     to_remove = set()
@@ -386,7 +431,7 @@ def filter_out_subsets(paths, N):
     final_filtered_lists = [lst for i, lst in enumerate(filtered_lists) if i not in to_remove]
     final_removed_coords = [rm for i, rm in enumerate(removed_coords) if i not in to_remove]
 
-    # Step 3: Reintroduce original boundary coordinates
+    # reintroduce original boundary coordinates
     restored_lists = []
     for coords, removed in zip(final_filtered_lists, final_removed_coords):
         restored_list = coords + removed
@@ -394,13 +439,20 @@ def filter_out_subsets(paths, N):
     return restored_lists
 
 def get_block_region_move(node):
-    t = time.time()
+    """
+    Determine the move to block the region by finding and validating paths.
+
+    Parameters:
+    - node: The GameState object.
+
+    Returns:
+    - A Move object if a valid blocking move is found, False otherwise.
+    """
     left_path = find_path_player_left(node)
     right_path = find_path_player_right(node)
     paths = left_path + right_path
     valid = [is_valid_region_block(node, path) for path in paths]
     result = [path for path, flag in zip(paths, valid) if flag]
-    #print(result)
     if len(result)>0:
         longest_path = max(result, key=len)
         coordinates = [cell for cell in longest_path if node.board.get(cell) == 0][0]

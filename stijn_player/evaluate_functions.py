@@ -176,8 +176,11 @@ def calc_score_center_moves(node) -> float:
     float: The score difference between the current player and the opponent.
     """
     N = node.board.N  # Board size (N x N grid)
-    center_row = (N + 1) / 2  # Center point 2 after middle row
-    center_col = (N - 1) / 2 # center point is middle col
+    if node.my_player == 1:
+        center_row = (N + 1) / 2  # Center point 2 after middle row
+    else:
+        center_row = (N/2) - 1.5
+    center_col = N // 2 # center point is middle col
     def distance_to_center(row: int, col: int) -> float:
         """
         Calculate the weighted distance of a cell to the center of the board.
@@ -235,19 +238,33 @@ def calculate_score_difference(node) -> float:
 
 
 def punish_corner(node):
-    if node.my_player ==1:
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        score=0
-        if (0,0) in player_occupied:
+    """
+    Penalizes a player if they occupy specific corner squares on the board.
+
+    Args:
+        node: An object representing the game state, including board size,
+              player positions, and current player.
+
+    Returns:
+        int: Penalty score (-10 if the corner is occupied, 0 otherwise).
+    """
+    if node.my_player == 1:
+        # Get the occupied squares for player 1
+        player_occupied = node.occupied_squares1
+        score = 0
+        if (0, 0) in player_occupied:  # Check top-left corner
             score = -10
         return score
-    if node.my_player ==2:
-        N = node.board.N
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        score=0
-        if (N-1,0) in player_occupied:
+
+    if node.my_player == 2:
+        # Get the occupied squares for player 2
+        N = node.board.N  # Board size
+        player_occupied = node.occupied_squares2
+        score = 0
+        if (N - 1, 0) in player_occupied:  # Check bottom-left corner
             score = -10
         return score
+
 
 def evaluate_node(node) -> float:
     """
@@ -263,9 +280,6 @@ def evaluate_node(node) -> float:
     score_center = calc_score_center_moves(node)
     score_one_empty = score_one_empty_in_region(node)
     score_mobility = calculate_mobility(node)
-    # if node.board.N <= 4:
-    #     punish_corner_score=0
-    # else:
     punish_corner_score = punish_corner(node)
 
     eval_func = score_diff_game + score_mobility + score_one_empty + score_center + punish_corner_score
