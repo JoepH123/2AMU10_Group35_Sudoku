@@ -1,7 +1,7 @@
 from competitive_sudoku.sudoku import Move
 import time
 from collections import deque
-def opening_game_phase_moves(node):
+def get_heuristic_moves(node):
     # if node.board.N <= 4:
     #     return False
     current_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
@@ -404,10 +404,8 @@ def get_block_region_move(node):
     if len(result)>0:
         longest_path = max(result, key=len)
         coordinates = [cell for cell in longest_path if node.board.get(cell) == 0][0]
-        print(time.time()-t, '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
         return Move(coordinates, node.solved_board_dict[coordinates])
     else:
-        print(time.time()-t, '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
         return False
 
 
