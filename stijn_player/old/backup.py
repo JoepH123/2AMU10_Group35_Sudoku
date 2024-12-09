@@ -402,3 +402,4 @@ def evaluate(self, node):
     eval_func = score_diff_game + 0.5*mobility + 0.5*score_diff_center + score_one_empty + 0.5*block_occupation + 0.5*line
     #print('score_diff: ', score_diff_game, 'score_center: ', score_diff_center,  'score_one_empty: ', score_one_empty , 'mobility: ',0.5* mobility, 'reward occupation: ',0.5*block_occupation,'eval: ' ,eval_func)
     return eval_func
+

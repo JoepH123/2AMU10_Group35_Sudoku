@@ -9,7 +9,7 @@ from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .evaluate_functions import evaluate_node, calculate_mobility, calculate_score_difference
 from .sudoku_solver import SudokuSolver
-from .hard_coded_moves import opening_game_phase_moves
+from .hard_coded_moves import get_heuristic_moves
 
 
 class NodeGameState(GameState):
@@ -35,9 +35,6 @@ class NodeGameState(GameState):
     def hash_key(self):
         """
         Generate a unique hash key for this node.
-
-        This could be based on a serialized representation of the board state,
-        current player, and other relevant attributes.
         """
         return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
 
@@ -165,110 +162,180 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - NodeGameState: The new game state after applying the move.
         """
+        # Create a deep copy of the node to generate a new state
         new_node = copy.deepcopy(node)
+
+        # Update the new node with the applied move
         new_node.last_move = move
         new_node.board.put(move.square, move.value)
         new_node.moves.append(move)
-        # Update the score for the current player
+
+        # Calculate the score resulting from the move and update the player's score
         score = self.calculate_move_score(new_node, move)
         new_node.scores[new_node.current_player - 1] += score
-        # Update occupied squares and switch player
+
+        # Update occupied squares and switch the current player
         if new_node.current_player == 1:
             new_node.occupied_squares1.append(move.square)
             new_node.current_player = 2
         else:
             new_node.occupied_squares2.append(move.square)
             new_node.current_player = 1
+
+        # Return the new node representing the updated game state
         return new_node
+
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
         """
-        Perform the Minimax algorithm with Alpha-Beta pruning.
+        Perform the Minimax algorithm with Alpha-Beta pruning, transposition table, and killer moves optimization.
 
         Parameters:
         - node (NodeGameState): The current game state.
         - depth (int): The depth limit for the search.
         - is_maximizing_player (bool): True if it's the maximizing player's turn.
-        - alpha (float): Alpha value for pruning.
-        - beta (float): Beta value for pruning.
+        - alpha (float): Alpha value for pruning (best already explored option along the path to the root for the maximizer).
+        - beta (float): Beta value for pruning (best already explored option along the path to the root for the minimizer).
 
         Returns:
         - float: The evaluated score of the node.
         """
+        # Increment the counter for nodes explored
         self.nodes_explored += 1
-        node_key = (node.hash_key(), depth, is_maximizing_player)  # Unique identifier for caching
+
+        # Generate a unique key for the node to check in the transposition table
+        node_key = (node.hash_key(), depth, is_maximizing_player)
+
+        # Check if the current node evaluation is already cached in the transposition table
         if node_key in self.transposition_table:
             return self.transposition_table[node_key]
 
-        # Base case: If maximum depth is reached or game state is terminal
+        # Base case: If maximum depth is reached or the node is a terminal state, evaluate the node
         if depth == 0 or self.is_terminal(node):
             score = self.evaluate(node)
-            self.transposition_table[node_key] = score
+            self.transposition_table[node_key] = score  # Cache the result
             return score
 
+        # Retrieve all moves and prioritize killer moves
         moves = self.get_all_moves(node)
         prioritized_moves = self.killer_moves[depth] + [move for move in moves if move not in self.killer_moves[depth]]
 
         if is_maximizing_player:
+            # Maximizing player's turn
             max_eval = float('-inf')
 
             for move in prioritized_moves:
+                # Apply the move to get the child node
                 child = self.apply_move(node, move)
+
+                # Recursively call minimax for the child node
                 eval_score = self.minimax(child, depth - 1, False, alpha, beta)
+
+                # Update the maximum evaluation score and alpha value
                 max_eval = max(max_eval, eval_score)
                 alpha = max(alpha, eval_score)
+
+                # Perform alpha-beta pruning if applicable
                 if beta <= alpha:
+                    # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth]:
-                        if len(self.killer_moves[depth]) >= 2:  # Keep only two killer moves
+                        if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
                             self.killer_moves[depth].pop(0)
                         self.killer_moves[depth].append(move)
-                    break  # Alpha-Beta Pruning
+                    break
+
+            # Cache the result and return the maximum evaluation score
             self.transposition_table[node_key] = max_eval
             return max_eval
 
         else:
+            # Minimizing player's turn
             min_eval = float('inf')
 
             for move in prioritized_moves:
+                # Apply the move to get the child node
                 child = self.apply_move(node, move)
+
+                # Recursively call minimax for the child node
                 eval_score = self.minimax(child, depth - 1, True, alpha, beta)
+
+                # Update the minimum evaluation score and beta value
                 min_eval = min(min_eval, eval_score)
                 beta = min(beta, eval_score)
+
+                # Perform alpha-beta pruning if applicable
                 if beta <= alpha:
+                    # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth]:
-                        if len(self.killer_moves[depth]) >= 2:  # Keep only two killer moves
+                        if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
                             self.killer_moves[depth].pop(0)
                         self.killer_moves[depth].append(move)
-                    break  # Alpha-Beta Pruning
+                    break
+
+            # Cache the result and return the minimum evaluation score
             self.transposition_table[node_key] = min_eval
             return min_eval
 
+
     def compute_best_move(self, game_state: GameState) -> None:
+        """
+        Compute and propose the best move for the current game state using iterative deepening and minimax algorithm.
+
+        Parameters:
+            game_state (GameState): The current state of the game.
+
+        Returns:
+            None: Proposes the best move directly using self.propose_move.
+        """
+
+        # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
 
-        self.nodes_explored = 0  # Reset the counter before the search
+        # Reset the nodes explored counter for this computation
+        self.nodes_explored = 0
+
+        # Retrieve all possible moves for the current state
         all_moves = self.get_all_moves(root_node)
+
+        # Randomly propose a move initially to ensure there's always a fallback
         self.propose_move(random.choice(all_moves))
 
-        opening_move = opening_game_phase_moves(root_node)
-        if opening_move:
-            self.propose_move(opening_move)
+        # Check for heuristic-based moves and propose if available
+        heuristic_move = get_heuristic_moves(root_node)
+        if heuristic_move:
+            self.propose_move(heuristic_move)
             return
 
+        # Initialize the best value to a very low number to track the maximum score
         best_value = float('-inf')
-        for depth in range(10):
-            counter_nodes=0
+
+        # Perform iterative deepening up to a specified maximum depth
+        for depth in range(10):  # Depth is set to 10 by default
+            counter_nodes = 0  # Initialize a counter for nodes explored at the current depth
+
             for move in all_moves:
+                # Apply the move to generate the child node
                 child = self.apply_move(root_node, move)
+
+                # Evaluate the child node using the minimax algorithm with alpha-beta pruning
                 move_value = self.minimax(child, depth, False, float('-inf'), float('inf'))
+
+                # Update the best move if the current move is better
                 if move_value > best_value:
                     best_value = move_value
                     best_move = move
-                    self.propose_move(best_move)
-                counter_nodes+=1
-                #print(counter_nodes)
-            print(f'Depth {depth+1} search complete.')
-            print(f'Nodes explored at depth {depth+1}: {self.nodes_explored}')
-            self.nodes_explored = 0  # Reset if tracking per depth
 
+                    # Propose the best move found so far
+                    self.propose_move(best_move)
+
+                # Increment the counter for nodes explored
+                counter_nodes += 1
+                print(counter_nodes)
+
+            # Output the progress for the current depth
+            print(f'Depth {depth + 1} search complete.')
+            print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
+
+            # Reset nodes explored counter for tracking nodes at the next depth level
+            self.nodes_explored = 0
