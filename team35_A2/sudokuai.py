@@ -331,11 +331,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
                 # Increment the counter for nodes explored
                 counter_nodes += 1
-                print(counter_nodes)
+                #print(counter_nodes)
 
             # Output the progress for the current depth
-            print(f'Depth {depth + 1} search complete.')
-            print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
+            #print(f'Depth {depth + 1} search complete.')
+            #print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
 
             # Reset nodes explored counter for tracking nodes at the next depth level
             self.nodes_explored = 0

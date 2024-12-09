@@ -280,7 +280,6 @@ def find_path_player_right(node):
 
             # Add the current cell to the path
             new_path = path + [(row, col)]
-            #print(new_path)
             new_empty_cell_count = empty_cell_count + (1 if node.board.get((row, col)) == 0 else 0)
 
             # Stop exploring if empty cell count exceeds the limit
