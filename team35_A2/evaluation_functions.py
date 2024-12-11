@@ -30,7 +30,6 @@ def score_one_empty_in_region(node) -> int:
     Returns:
     int: The score based on regions with one empty cell.
     """
-    my_player = node.my_player
     N = node.board.N  # Board size (N x N grid)
     n, m = node.board.n, node.board.m  # Block dimensions
 
@@ -125,12 +124,8 @@ def score_one_empty_in_region(node) -> int:
         ]
 
     # Define players' occupied squares
-    player_occupied = (
-        node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2
-    )
-    opponent_occupied = (
-        node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1
-    )
+    player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+    opponent_occupied = (node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1)
 
     score_one_empty = 0
 
@@ -144,9 +139,7 @@ def score_one_empty_in_region(node) -> int:
         nonlocal score_one_empty
         if empty_cells_in_region(cells) == 1:
             if node.current_player == node.my_player:
-                if occupied_neighbors(cells, opponent_occupied) and occupied_neighbors(
-                    cells, player_occupied
-                ):
+                if occupied_neighbors(cells, opponent_occupied) and occupied_neighbors(cells, player_occupied):
                     score_one_empty += 1
             else:
                 if occupied_neighbors(cells, opponent_occupied):
@@ -176,8 +169,9 @@ def calc_score_center_moves(node) -> float:
     float: The score difference between the current player and the opponent.
     """
     N = node.board.N  # Board size (N x N grid)
+    # calc center point for player after the middle row
     if node.my_player == 1:
-        center_row = (N + 1) / 2  # Center point 2 after middle row
+        center_row = (N/2) + 0.5
     else:
         center_row = (N/2) - 1.5
     center_col = N // 2 # center point is middle col
