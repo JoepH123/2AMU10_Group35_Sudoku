@@ -2,16 +2,26 @@ import numpy as np
 import random
 import torch
 import pickle
+import time
+import os
+import matplotlib.pyplot as plt
 from env2x2 import DQLGameState
 from DQN2x2 import SimpleCNNQNetwork
 
-def load_model(filename):
-    with open(filename, "rb") as f:
+def load_model(filename="dqn_model_2x2.pkl"):
+    """Load the trained model from the 'models' folder in the same directory."""
+    # Dynamisch pad naar de 'models' folder bepalen
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
+    models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
+    file_path = os.path.join(models_dir, filename)  # Volledige pad naar modelbestand
+
+    # Model laden
+    with open(file_path, "rb") as f:
         data = pickle.load(f)
-    model = SimpleCNNQNetwork(input_shape=(4,4), num_actions=16)
+    model = SimpleCNNQNetwork(input_shape=(4, 4), num_actions=16)
     model.load_state_dict(data["policy_state_dict"])
     model.eval()
-    print(f"Model loaded from {filename}")
+    print(f"Model loaded from {file_path}")
     return model
 
 def make_state(board):
@@ -43,24 +53,81 @@ def random_opponent_move(state):
         return None
     return random.choice(moves)
 
+def plot_board(board, title="Game State", pause_time=1.5):
+    """Update the existing plot with the current game board in one static figure."""
+    plt.clf()  # Clear the current figure
+    
+    N = 4  # Board size
+    ax = plt.gca()  # Get current Axes to keep it in one figure
+
+    # Draw the board with colored cells
+    ax.imshow(board, cmap="coolwarm", vmin=-1, vmax=1, origin="upper")
+
+    # Draw thin gridlines for all cells
+    for x in range(N + 1):
+        ax.axhline(x - 0.5, color="black", linewidth=1)  # Horizontal lines
+        ax.axvline(x - 0.5, color="black", linewidth=1)  # Vertical lines
+
+    # Draw thick lines for 2x2 regions
+    for x in range(0, N + 1, 2):
+        ax.axhline(x - 0.5, color="black", linewidth=2)  # Horizontal 2x2 borders
+        ax.axvline(x - 0.5, color="black", linewidth=2)  # Vertical 2x2 borders
+
+    # Add text in each cell
+    for i in range(N):
+        for j in range(N):
+            value = board[i, j]
+            if value == 1:
+                text = "P1"
+                color = "white"
+            elif value == -1:
+                text = "P2"
+                color = "white"
+            else:
+                text = "."
+                color = "gray"
+            ax.text(j, i, text, ha="center", va="center", fontsize=12, color=color)
+
+    # Set title and subtitle (live score or game info)
+    plt.title(title, fontsize=14)
+    plt.xlabel("Player 1 (P1) vs Player 2 (P2)", fontsize=10, labelpad=10)
+
+    # Remove axis ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Update the plot without creating a new figure
+    plt.draw()
+    plt.pause(pause_time)  # Pause to allow viewing
+
+
+
 def test_model(model, num_games=10):
     """Test the trained model against a random opponent."""
     env = DQLGameState()
-    results = []
-    scores = []
 
     for game in range(num_games):
         env.reset()
         done = False
         agent_score = 0
         opponent_score = 0
+        print(f"\nGame {game + 1}:")
 
         while not done:
-            valid_moves = env.get_all_moves()
-            if len(valid_moves) == 0:
-                break
+            # Visualize current board state
+            plot_board(env.board, title=f"Agent's Move (Score: {agent_score} - {opponent_score})")
 
             # Agent move
+            valid_moves = env.get_all_moves()
+            if len(valid_moves) == 0:
+                # Check opponent can move; otherwise, game over
+                opponent_moves = env.get_all_moves(player=-env.current_player)
+                if len(opponent_moves) == 0:
+                    done = True
+                    break
+                env.current_player = -env.current_player  # Switch to opponent
+                continue
+
             current_board = env.board.copy()
             state = make_state(current_board)
             action = select_max_q_action(model, state, valid_moves)
@@ -71,26 +138,38 @@ def test_model(model, num_games=10):
             if done:
                 break
 
-            # Opponent move (random)
-            opponent_action = random_opponent_move(env)
-            if opponent_action is not None:
-                _, done, info = env.step(opponent_action)
-                agent_score = info["score"][0]
-                opponent_score = info["score"][1]
+            # Visualize after opponent move
+            plot_board(env.board, title=f"Opponent's Move (Score: {agent_score} - {opponent_score})")
 
-        # Store the results
+            # Opponent move (random)
+            opponent_moves = env.get_all_moves()
+            if len(opponent_moves) == 0:
+                # Check agent can move; otherwise, game over
+                agent_moves = env.get_all_moves(player=-env.current_player)
+                if len(agent_moves) == 0:
+                    done = True
+                    break
+                env.current_player = -env.current_player  # Switch back to agent
+                continue
+
+            opponent_action = random.choice(opponent_moves)
+            _, done, info = env.step(opponent_action)
+            agent_score = info["score"][0]
+            opponent_score = info["score"][1]
+
+        # Final board state
+        plot_board(env.board, title=f"Final State (Agent: {agent_score}, Opponent: {opponent_score})")
+
         result = "Win" if agent_score > opponent_score else "Loss" if agent_score < opponent_score else "Draw"
-        results.append(result)
-        scores.append((agent_score, opponent_score))
         print(f"Game {game + 1}: {result} (Agent: {agent_score}, Opponent: {opponent_score})")
 
-    # Print summary
-    print("\nSummary:")
-    print(f"Games played: {num_games}")
-    print(f"Wins: {results.count('Win')}")
-    print(f"Losses: {results.count('Loss')}")
-    print(f"Draws: {results.count('Draw')}")
+
 
 if __name__ == "__main__":
-    model = load_model("C:\\Users\\20203734\\OneDrive - TU Eindhoven\\2AMU10_Group35_Sudoku\\Sudoku environment\\2x2\\models\\dqn_model_2x2.pkl")
-    test_model(model, num_games=1000)
+    start_time = time.time()  # Start de timer
+    model = load_model()
+    end_time = time.time()  # Stop de timer
+    load_duration = end_time - start_time
+    print(f"Model loading time: {load_duration:.4f} seconds")
+
+    test_model(model, num_games=10)
