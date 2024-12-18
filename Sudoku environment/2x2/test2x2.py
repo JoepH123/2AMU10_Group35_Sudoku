@@ -105,6 +105,7 @@ def plot_board(board, title="Game State", pause_time=1.5):
 def test_model(model, num_games=10):
     """Test the trained model against a random opponent."""
     env = DQLGameState()
+    wins = 0
 
     for game in range(num_games):
         env.reset()
@@ -159,17 +160,21 @@ def test_model(model, num_games=10):
 
         # Final board state
         plot_board(env.board, title=f"Final State (Agent: {agent_score}, Opponent: {opponent_score})")
+        if agent_score > opponent_score:
+            wins += 1
 
         result = "Win" if agent_score > opponent_score else "Loss" if agent_score < opponent_score else "Draw"
         print(f"Game {game + 1}: {result} (Agent: {agent_score}, Opponent: {opponent_score})")
+
+    return wins/num_games
 
 
 
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model()
+    model = load_model(filename='best_dqn_model.pkl')
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")
 
-    test_model(model, num_games=10)
+    print(test_model(model, num_games=10))

@@ -66,6 +66,7 @@ def main():
     epsilon_end = 0.05
     epsilon_decay = 60_000 # decay steps
     agent = DQNAgent(lr=1e-3, gamma=0.99, batch_size=64, replay_size=1000, update_target_every=500)
+    normalization_factor = 7.0
 
     epsilon = epsilon_start
     epsilon_step = (epsilon_start - epsilon_end)/epsilon_decay
@@ -87,113 +88,82 @@ def main():
         state_obj.reset()
         #plot_board(state_obj.board)
         done = False
-        steps = 0
         final_agent_score = 0
         final_opponent_score = 0
         episode_reward = 0.0
 
         while not done:
-            extra_opponent_reward = 0.0
 
-            valid_moves = state_obj.get_all_moves()
-            # if len(valid_moves) == 0:
-            #     # Agent cannot move
-            #     other_player = -state_obj.current_player
-            #     print('player switch')
-            #     other_moves = state_obj.get_all_moves(player=other_player)
-            #     if len(other_moves) == 0:
-            #         # Both can't move
-            #         done = True
-            #         break
-            #     else:
-            #         print('agent cant make any moves, opponent can')
-            #         state_obj.current_player = other_player
-            #         extra_opponent_reward = 5
-            #         episode_reward += extra_opponent_reward
-            #         continue
+            if state_obj.current_player == 1: # if agent to move
+                valid_moves = state_obj.get_all_moves()
 
-            current_board = state_obj.board.copy().astype(np.float32)
-            current_state = make_state(current_board)
-            action = agent.select_action(current_state, valid_moves, epsilon)
-            reward_agent, done_agent, info = state_obj.step(action)
-            #plot_board(state_obj.board)
+                current_board = state_obj.board.copy().astype(np.float32)
+                current_state = make_state(current_board)
+                action = agent.select_action(current_state, valid_moves, epsilon)
 
-            final_agent_score = info["score"][0]
-            final_opponent_score = info["score"][1]
+                reward_agent, done_agent, info = state_obj.step(action)
+                reward_agent = reward_agent/normalization_factor
+                #plot_board(state_obj.board)
 
-            next_board = state_obj.board.copy().astype(np.float32)
-            next_state = make_state(next_board)
+                if done_agent:
+                    next_board = state_obj.board.copy().astype(np.float32)
+                    next_state = make_state(next_board)
+                    agent.store_transition(current_state, action, reward_agent, next_state, True)
+                    #plot_board(state_obj.board, title=str(reward_agent))
+                    agent.update()
+                    break
 
-            # if done_agent:
-            #     # Geen tegenstanderzet
-            #     done = True
-            #     combined_reward = reward_agent
-            #     # Win/lose check
-            #     # if final_agent_score > final_opponent_score:
-            #     #     combined_reward += 100.0
-            #     # elif final_agent_score < final_opponent_score:
-            #     #     combined_reward -= 100.0
-            #     episode_reward += combined_reward
-            #     combined_reward = combined_reward/12
-            #     agent.store_transition(current_state, action, combined_reward, next_state, True)
-            #     print('end of game')
-            #     agent.update()
-            #     break
+                valid_moves_opponent = state_obj.get_all_moves(player=-1)
+                if not valid_moves_opponent: # als opponent niet meer kan zetten dus gewoon eigen zet storen en door
+                    next_board = state_obj.board.copy().astype(np.float32)
+                    next_state = make_state(next_board)
+                    agent.store_transition(current_state, action, reward_agent, next_state, False)
+                    #plot_board(state_obj.board, title=str(reward_agent))
+                    agent.update()
+                    continue
 
-            # Opponent turn
-            opponent_action = random_opponent_move(state_obj)
-            # if opponent_action is None:
-            #     # Opponent can't move
-            #     other_player = -state_obj.current_player
-            #     print('player switch')
-            #     other_moves = state_obj.get_all_moves(player=other_player)
-            #     if len(other_moves) == 0:
-            #         # Both can't move
-            #         done = True
-            #         combined_reward = reward_agent
-            #         # if final_agent_score > final_opponent_score:
-            #         #     combined_reward += 100.0
-            #         # elif final_agent_score < final_opponent_score:
-            #         #     combined_reward -= 100.0
-            #         episode_reward += combined_reward
-            #         combined_reward = combined_reward/12
-            #         agent.store_transition(current_state, action, combined_reward, next_state, True)
-            #         print('both cant move')
-            #         agent.update()
-            #         break
-            #     else:
-            #         extra_reward = 5
-            #         combined_reward = reward_agent + extra_reward
-            #         episode_reward += combined_reward
-            #         combined_reward = combined_reward/12
-            #         agent.store_transition(current_state, action, combined_reward, next_state, False)
-            #         agent.update()
-            #         print('opponent trapped')
-            #         continue
 
-            reward_opponent, done_opponent, info = state_obj.step(opponent_action)
-            #plot_board(state_obj.board)
-            done = done_opponent
-            final_agent_score = info["score"][0]
-            final_opponent_score = info["score"][1]
+            else: # Opponent turn
+                opponent_action = random_opponent_move(state_obj)
+                reward_opponent, done_opponent, info = state_obj.step(opponent_action)
+                reward_opponent = reward_opponent/normalization_factor
+                #plot_board(state_obj.board)
 
-            combined_reward = reward_agent - reward_opponent - extra_opponent_reward
-            if done:
-                # if final_agent_score > final_opponent_score:
-                #     combined_reward += 100.0
-                # elif final_agent_score < final_opponent_score:
-                #     combined_reward -= 100.0
-                episode_reward += combined_reward
-                combined_reward = combined_reward/12
-                agent.store_transition(current_state, action, combined_reward, next_state, True)
-                agent.update()
-            else:
-                episode_reward += combined_reward
-                combined_reward = combined_reward/12
-                agent.store_transition(current_state, action, combined_reward, next_state, False)
-                agent.update()
+                next_board = state_obj.board.copy().astype(np.float32)
+                next_state = make_state(next_board)
 
-            steps += 1
+                combined_reward = reward_agent - reward_opponent
+
+                if done_opponent: # als het na move opponent klaar is
+                    episode_reward += combined_reward
+                    agent.store_transition(current_state, action, combined_reward, next_state, True)
+                    agent.update()
+                    break
+                else: # indien gewoon normaal doorgespeeld kan worden, nu dit opslaan
+                    episode_reward += combined_reward
+                    agent.store_transition(current_state, action, combined_reward, next_state, False)
+                    agent.update()
+
+                valid_moves_agent = state_obj.get_all_moves(player=1)
+                if not valid_moves_agent: # als Agent niet meer kan zetten doorspelen tot einde en cum_reward gebruiken van opponent 
+
+                    cum_reward = 0
+                    done_playout = False
+                    while not done_playout:
+                        #plot_board(state_obj.board)
+                        action = random_opponent_move(state_obj)
+                        reward_opponent, done_playout, info = state_obj.step(action)
+                        cum_reward += (reward_opponent/normalization_factor)
+                        #plot_board(state_obj.board)
+
+                        if done_playout:
+                            combined_reward = combined_reward - cum_reward
+                            #plot_board(state_obj.board, title=str(combined_reward))
+                            agent.store_transition(current_state, action, combined_reward, next_state, True)
+                            agent.update()
+                            break
+                    break                    
+                continue
 
         # Epsilon decay
         if epsilon > epsilon_end:
