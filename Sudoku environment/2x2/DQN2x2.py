@@ -6,25 +6,51 @@ import random
 import numpy as np
 from collections import deque
 
+# class SimpleCNNQNetwork(nn.Module):
+#     def __init__(self, input_shape=(4,4), num_actions=16):
+#         super(SimpleCNNQNetwork, self).__init__()
+#         # 3 kanalen: p1, p2, empty
+#         self.conv = nn.Sequential(
+#             nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
+#             nn.ReLU(),
+#             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+#             nn.ReLU()
+#         )
+#         self.fc = nn.Sequential(
+#             nn.Linear(32 * 4 * 4, 64),
+#             nn.ReLU(),
+#             nn.Linear(64, num_actions)
+#         )
+
+#     def forward(self, x):
+#         x = self.conv(x)
+#         x = x.view(x.size(0), -1)
+#         x = self.fc(x)
+#         return x
+    
 class SimpleCNNQNetwork(nn.Module):
-    def __init__(self, input_shape=(4,4), num_actions=16):
+    def __init__(self, input_shape=(4, 4), num_actions=16):
         super(SimpleCNNQNetwork, self).__init__()
         # 3 kanalen: p1, p2, empty
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU()
         )
         self.fc = nn.Sequential(
-            nn.Linear(32 * 4 * 4, 64),
+            nn.Linear(64 * 4 * 4, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, num_actions)
         )
 
     def forward(self, x):
         x = self.conv(x)
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # Flatten
         x = self.fc(x)
         return x
 

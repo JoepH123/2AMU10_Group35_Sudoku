@@ -5,13 +5,12 @@ import pickle
 import time
 import os
 import matplotlib.pyplot as plt
-from env2x2 import DQLGameState
-from DQN2x2 import SimpleCNNQNetwork
-from Opponents import select_action_score_or_mobility
+from env import DQLGameState
+from DQN import CNNQNetwork
+from opponents import select_action_score_or_mobility, random_opponent_move, select_action_score
 
 def load_model(filename="dqn_model_2x2.pkl"):
     """Load the trained model from the 'models' folder in the same directory."""
-    # Dynamisch pad naar de 'models' folder bepalen
     script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
     models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
     file_path = os.path.join(models_dir, filename)  # Volledige pad naar modelbestand
@@ -19,11 +18,14 @@ def load_model(filename="dqn_model_2x2.pkl"):
     # Model laden
     with open(file_path, "rb") as f:
         data = pickle.load(f)
-    model = SimpleCNNQNetwork(input_shape=(4, 4), num_actions=16)
+
+    # Pas de input_shape en num_actions aan overeenkomstig je nieuwe architectuur
+    model = CNNQNetwork(input_shape=(9, 9), num_actions=81)
     model.load_state_dict(data["policy_state_dict"])
     model.eval()
     print(f"Model loaded from {file_path}")
     return model
+
 
 def make_state(board):
     """Create the one-hot encoded state representation."""
@@ -33,19 +35,19 @@ def make_state(board):
     return np.stack([p1_channel, p2_channel, empty_channel], axis=0)  # (3,4,4)
 
 def select_max_q_action(model, state, valid_moves):
-    """Select the action with the highest Q-value."""
-    state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # (1, 3, 4, 4)
+    """Select the action with the highest Q-value for a 9x9 board."""
+    state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # (1, 3, 9, 9)
     with torch.no_grad():
-        q_values = model(state_t).squeeze(0).numpy()  # (16,)
+        q_values = model(state_t).squeeze(0).numpy()  # (81,)
     
     # Mask invalid moves
     q_values_masked = np.full_like(q_values, -1e9)
     for r, c in valid_moves:
-        action_idx = r * 4 + c
+        action_idx = r * 9 + c  # Updated for 9x9
         q_values_masked[action_idx] = q_values[action_idx]
     
     best_action_idx = np.argmax(q_values_masked)
-    return best_action_idx // 4, best_action_idx % 4
+    return best_action_idx // 9, best_action_idx % 9  # Updated for 9x9
 
 def random_opponent_move(state):
     """Generate a random valid move for the opponent."""
@@ -58,21 +60,24 @@ def plot_board(board, title="Game State", pause_time=1.5):
     """Update the existing plot with the current game board in one static figure."""
     plt.clf()  # Clear the current figure
     
-    N = 4  # Board size
+    N = board.shape[0]  # Dynamisch bepalen uit het board
+    # We gaan uit van een vierkant bord (N x N)
+    block_size = 3  # Voor een 9x9 bord blokkeer je wellicht 3x3 blokken
+
     ax = plt.gca()  # Get current Axes to keep it in one figure
 
     # Draw the board with colored cells
     ax.imshow(board, cmap="coolwarm", vmin=-1, vmax=1, origin="upper")
 
-    # Draw thin gridlines for all cells
+    # Dunne gridlijnen voor alle cellen
     for x in range(N + 1):
         ax.axhline(x - 0.5, color="black", linewidth=1)  # Horizontal lines
         ax.axvline(x - 0.5, color="black", linewidth=1)  # Vertical lines
 
-    # Draw thick lines for 2x2 regions
-    for x in range(0, N + 1, 2):
-        ax.axhline(x - 0.5, color="black", linewidth=2)  # Horizontal 2x2 borders
-        ax.axvline(x - 0.5, color="black", linewidth=2)  # Vertical 2x2 borders
+    # Dikke lijnen voor de blokken (hier 3x3)
+    for x in range(0, N + 1, block_size):
+        ax.axhline(x - 0.5, color="black", linewidth=2)  # Horizontal block borders
+        ax.axvline(x - 0.5, color="black", linewidth=2)  # Vertical block borders
 
     # Add text in each cell
     for i in range(N):
@@ -100,7 +105,6 @@ def plot_board(board, title="Game State", pause_time=1.5):
     # Update the plot without creating a new figure
     plt.draw()
     plt.pause(pause_time)  # Pause to allow viewing
-
 
 
 def test_model(model, num_games=10):
@@ -158,7 +162,7 @@ def test_model(model, num_games=10):
                 env.current_player = -env.current_player  # Switch back to agent
                 continue
 
-            opponent_action = select_action_score_or_mobility(env)
+            opponent_action = random_opponent_move(env)
             _, done, info = env.step(opponent_action)
             agent_score = info["score"][0]
             opponent_score = info["score"][1]
@@ -183,7 +187,7 @@ def test_model(model, num_games=10):
 
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model(filename='greedy_best_dqn_model.pkl')
+    model = load_model(filename='dqn_model.pkl')
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")

@@ -16,6 +16,7 @@ def random_opponent_move(state):
         return None
     return random.choice(moves)
 
+
 def check_device():
     if torch.cuda.is_available():
         print(f"GPU is available: {torch.cuda.get_device_name(0)}")

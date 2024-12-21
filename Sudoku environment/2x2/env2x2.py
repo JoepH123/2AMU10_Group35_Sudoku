@@ -90,8 +90,7 @@ class DQLGameState:
                 pass
 
         done = self.is_terminal()
-        # Normaliseer reward
-        #reward = reward / 100
+        
         return reward, done, {"score": self.score}
 
     def _region_completion_reward(self, regions_completed):
