@@ -187,7 +187,7 @@ def test_model(model, num_games=10):
 
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model(filename='dqn_model.pkl')
+    model = load_model(filename='9x9_greedy_1_best_dqn_model.pkl')
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")

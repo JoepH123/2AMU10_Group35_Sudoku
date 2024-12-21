@@ -21,6 +21,23 @@ def check_device():
         print("GPU is NOT available. Using CPU.")
 
 
+def load_model(agent, filename="dqn_model.pkl"):
+    """Laad een opgeslagen model en initialiseer de agent met de gewichten."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    models_dir = os.path.join(script_dir, "models")
+    file_path = os.path.join(models_dir, filename)
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Model file '{file_path}' not found.")
+
+    with open(file_path, "rb") as f:
+        data = pickle.load(f)
+
+    agent.policy_net.load_state_dict(data["policy_state_dict"])
+    agent.target_net.load_state_dict(data["policy_state_dict"])  # Synchroniseer target_net
+    print(f"Model loaded from {file_path}.")
+
+
 def save_model_as_pkl(agent, epsilon, filename="dqn_model.pkl"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     directory = os.path.join(script_dir, "models")
@@ -62,24 +79,33 @@ def main():
     agent = DQNAgent(lr=1e-3, gamma=0.99, batch_size=64, replay_size=1000, update_target_every=500)
     normalization_factor = 7.0
 
-    # 2 phase epsilon
-    epsilon_start = 1.0
-    epsilon_end = 0.05
-    epsilon_decay_steps = num_episodes
-    epsilon_step = (epsilon_start - epsilon_end) / epsilon_decay_steps
+    # Laad het bestaande model (optioneel)
+    model_filename = "9x9_greedy_1_best_dqn_model.pkl"  # Pas dit aan naar jouw opgeslagen modelbestand
+    try:
+        load_model(agent, filename=model_filename)  # Initialiseer met opgeslagen gewichten
+        print("Starting training with preloaded model.")
+    except FileNotFoundError:
+        print("No pretrained model found. Starting training from scratch.")
 
-    opponent_policy = random_opponent_move
+    opponent_policy = select_action_score
 
-    # epsilon_decay_steps_phase1 = 50_000
-    # epsilon_decay_steps_phase2 = 30_000
-    # epsilon_step_phase1 = (epsilon_start - epsilon_mid) / epsilon_decay_steps_phase1
-    # epsilon_step_phase2 = (epsilon_mid_start - epsilon_end) / epsilon_decay_steps_phase2
+    # Stel de parameters in
+    epsilon_start = 0.3
+    epsilon_mid = 0.1
+    epsilon_end = 0.01
+
+    epsilon_decay_steps_phase1 = 20_000
+    epsilon_decay_steps_phase2 = 30_000
+    total_decay_steps = epsilon_decay_steps_phase1 + epsilon_decay_steps_phase2
+
+    epsilon_step_phase1 = (epsilon_start - epsilon_mid) / epsilon_decay_steps_phase1
+    epsilon_step_phase2 = (epsilon_mid - epsilon_end) / epsilon_decay_steps_phase2
 
     win_rate_history = []
     avg_rewards_per_interval = []
     win_count = 0
     episodes_tracked = 0
-    win_rate_interval = 100
+    win_rate_interval = 500
 
     total_rewards = 0
     rounds_in_interval = 0
@@ -90,14 +116,13 @@ def main():
 
     for episode in tqdm(range(num_episodes), desc="Training Progress", unit="episode"):
 
-        epsilon = max(epsilon_end, epsilon_start - episode * epsilon_step)
-
-        # if episode <= epsilon_decay_steps_phase1:  # Eerste fase
-        #     epsilon = max(epsilon_mid, epsilon_start - episode * epsilon_step_phase1)
-        #     opponent_policy = select_action_score
-        # else:  # Tweede fase
-        #     epsilon = max(epsilon_end, epsilon_mid - (episode - epsilon_decay_steps_phase1) * epsilon_step_phase2)
-        #     opponent_policy = select_action_score # greedy opponent
+        if episode < epsilon_decay_steps_phase1:  # Fase 1
+            epsilon = max(epsilon_mid, epsilon_start - episode * epsilon_step_phase1)
+        elif episode < total_decay_steps:         # Fase 2
+            episodes_in_phase2 = episode - epsilon_decay_steps_phase1
+            epsilon = max(epsilon_end, epsilon_mid - episodes_in_phase2 * epsilon_step_phase2)
+        else:
+            epsilon = epsilon_end
 
         state_obj.reset()
         #plot_board(state_obj.board)
@@ -145,7 +170,7 @@ def main():
                         valid_moves = state_obj.get_all_moves()
                         new_action = agent.select_action(new_state, valid_moves, epsilon)
                         reward, done_playout, info = state_obj.step(new_action)
-                        cum_reward += (reward/normalization_factor)
+                        cum_reward = cum_reward + (reward/normalization_factor) + ((len(valid_moves)*0.2)/normalization_factor)
 
                         final_agent_score = info["score"][0]
                         final_opponent_score = info["score"][1]
@@ -231,12 +256,11 @@ def main():
             avg_reward = total_rewards / rounds_in_interval
             avg_rewards_per_interval.append(avg_reward)
 
-            if episode > num_episodes/2:
-                if win_rate > best_win_rate:
-                    best_win_rate = win_rate
-                    save_model_as_pkl(agent, best_win_rate, filename="9x9_random_best_dqn_model.pkl")
+            if win_rate > best_win_rate:
+                best_win_rate = win_rate
+                save_model_as_pkl(agent, best_win_rate, filename="9x9_greedy_best_dqn_model.pkl")
 
-            if (episode + 1) % (win_rate_interval*10) == 0:
+            if (episode + 1) % (win_rate_interval) == 0:
                 print(f"Episode {episode+1}/{num_episodes} completed. Epsilon: {epsilon:.3f}")
                 print(f"Win Rate over last {win_rate_interval} episodes: {win_rate:.2f}%")
                 print(f"Avg Reward: {avg_reward:.2f}")
