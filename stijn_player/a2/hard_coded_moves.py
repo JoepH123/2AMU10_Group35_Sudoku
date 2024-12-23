@@ -23,10 +23,10 @@ def get_heuristic_moves(node):
     if corner_defense:
         return corner_defense
 
-    # Attempt to block a area move.
-    block_area = get_block_area_move(node)
-    if block_area:
-        return block_area
+    # Attempt to block a region move.
+    block_region = get_block_region_move(node)
+    if block_region:
+        return block_region
 
 def defend_corner(node):
     """
@@ -40,11 +40,9 @@ def defend_corner(node):
     """
     N = node.board.N
     if node.my_player == 1:
-        # if cells are not empty blocking corner has no purpose
         if not (node.board.get((0, 0)) == 0 and node.board.get((1, 0)) == 0):
             return False
         opponent_occupied = node.occupied_squares2
-        #check if risk squares are occupied bu opponent
         risk_squares = [(2,1), (2,0)]
         for sq in risk_squares:
             if sq in opponent_occupied:
@@ -52,11 +50,9 @@ def defend_corner(node):
                 return Move(coordinates, node.solved_board_dict[coordinates])
 
     elif node.my_player == 2:
-        # if cells are not empty blocking corner has no purpose
         if not (node.board.get((N-1, 0)) == 0 and node.board.get((N-2, 0)) == 0):
             return False
         opponent_occupied = node.occupied_squares1
-        #check if risk squares are occupied bu opponent
         risk_squares = [(N-3,1), (N-3,0)]
         for sq in risk_squares:
             if sq in opponent_occupied:
@@ -161,6 +157,8 @@ def find_path_player_left(node):
         # Initialize the queue
         queue = deque(starting_points)
         visited = set()
+        best_path = []
+        min_empty_cells = float('inf')
         all_valid_paths = []
         while queue:
             row, col, path, empty_cell_count, origin = queue.popleft()
@@ -270,6 +268,8 @@ def find_path_player_right(node):
         # Initialize the queue
         queue = deque(starting_points)
         visited = set()
+        best_path = []
+        min_empty_cells = float('inf')
         all_valid_paths = []
         while queue:
             row, col, path, empty_cell_count, origin = queue.popleft()
@@ -280,6 +280,7 @@ def find_path_player_right(node):
 
             # Add the current cell to the path
             new_path = path + [(row, col)]
+            #print(new_path)
             new_empty_cell_count = empty_cell_count + (1 if node.board.get((row, col)) == 0 else 0)
 
             # Stop exploring if empty cell count exceeds the limit
@@ -317,9 +318,9 @@ def find_path_player_right(node):
     return paths
 
 
-def is_valid_area_block(node, path):
+def is_valid_region_block(node, path):
     """
-    Check if a path satisfies area-blocking conditions:
+    Check if a path satisfies region-blocking conditions:
     - Region under the path contains opponent squares or too many empty cells.
     - Path includes at most one cell in starting/ending rows or walls.
 
@@ -328,7 +329,7 @@ def is_valid_area_block(node, path):
     - path: A list of tuples representing the cells in the path.
 
     Returns:
-    - True if the path creates a valid block area, False otherwise.
+    - True if the path creates a valid block region, False otherwise.
     """
     N = node.board.N  # Board size (N x N grid)
     current_player = node.my_player
@@ -345,8 +346,8 @@ def is_valid_area_block(node, path):
 
     if len([cell for cell in path if node.board.get(cell) == 0])==0:
         return False
-    # Dynamically compute the area under the path
-    area = set()
+    # Dynamically compute the region under the path
+    region = set()
     start_row_count = 0 # Count cells in the start row
     left_wall_count = 0
     right_wall_count = 0
@@ -354,7 +355,7 @@ def is_valid_area_block(node, path):
         # Add all rows below (for Player 1) or above (for Player 2)
         if current_player == 1:
             for r in range(row, -1, -1):
-                area.add((r, col))
+                region.add((r, col))
             if row == 0:  # Player 1's start row
                 start_row_count += 1
             if col==0:
@@ -363,7 +364,7 @@ def is_valid_area_block(node, path):
                 right_wall_count +=1
         else:
             for r in range(row, N):
-                area.add((r, col))
+                region.add((r, col))
             if row == N - 1:  # Player 2's start row
                 start_row_count += 1
             if col==0:
@@ -380,11 +381,11 @@ def is_valid_area_block(node, path):
         return False
         # Count empty cells and check for opponent squares
     empty_cells = 0
-    for cell in area:
+    for cell in region:
         if cell in opponent_squares:
-            return False  # Opponent square found in the area
+            return False  # Opponent square found in the region
 
-    for cell in area:
+    for cell in region:
         if node.board.get(cell) == 0:
             empty_cells += 1
             if empty_cells >= 2:  # Early exit if more than 2 empty cells
@@ -407,7 +408,6 @@ def filter_out_subsets(paths, N):
     filtered_lists = []
     removed_coords = []
 
-    #remove cells from path that are adjacent to the wall
     for coord_list in paths:
         new_list = []
         removed = []
@@ -422,7 +422,6 @@ def filter_out_subsets(paths, N):
     # remove subset lists
     set_lists = [set(lst) for lst in filtered_lists]
 
-    #check if a path is a subset
     to_remove = set()
     for i, s1 in enumerate(set_lists):
         for j, s2 in enumerate(set_lists):
@@ -439,9 +438,9 @@ def filter_out_subsets(paths, N):
         restored_lists.append(restored_list)
     return restored_lists
 
-def get_block_area_move(node):
+def get_block_region_move(node):
     """
-    Determine the move to block the area by finding and validating paths.
+    Determine the move to block the region by finding and validating paths.
 
     Parameters:
     - node: The GameState object.
@@ -449,16 +448,11 @@ def get_block_area_move(node):
     Returns:
     - A Move object if a valid blocking move is found, False otherwise.
     """
-    #find left and right paths and combine them
     left_path = find_path_player_left(node)
     right_path = find_path_player_right(node)
     paths = left_path + right_path
-
-    # check if paths are valid and store them in results
-    valid = [is_valid_area_block(node, path) for path in paths]
+    valid = [is_valid_region_block(node, path) for path in paths]
     result = [path for path, flag in zip(paths, valid) if flag]
-
-    # if there is a valid path take the longest and get the coordinates of the empty cell on the path
     if len(result)>0:
         longest_path = max(result, key=len)
         coordinates = [cell for cell in longest_path if node.board.get(cell) == 0][0]
