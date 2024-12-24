@@ -40,51 +40,76 @@ class MCT_node:
 
         return board
 
+
     def get_legal_moves(self):
         """
-        Returns a list of (x, y) coordinates for all legal moves for current player.
-        A legal move is any empty cell (value = 0) that is in row 0
-        OR adjacent (in any of the 8 directions) to at least one cell with current player.
+        Returns a list of (x, y) coordinates for all legal moves for the current player.
+        A legal move is any empty cell (value = 0) that is in row 0 (if current_player=1)
+        or row N-1 (if current_player=2), OR is adjacent (in any of the 8 directions)
+        to at least one cell with the current player.
         """
-        N = self.N  # assuming square board: NxN
+        N = self.N
+        board = self.board
         current_player = self.current_player
-        # Mark which cells are neighbors of a cell with a '1'
-        neighbors_of_current_player = np.zeros((N, N), dtype=bool)
 
-        # Directions (dx, dy) to cover 8 neighbors (including diagonals)
-        directions = [(-1, -1), (-1,  0), (-1,  1),
-                      ( 0, -1),           ( 0,  1),
-                      ( 1, -1), ( 1,  0), ( 1,  1)]
+        # 1) Identify empty cells
+        empty_mask = (board == 0)
 
-        # For each cell that contains 1, mark its neighbors
-        current_player_positions = np.argwhere(self.board == current_player)  # array of [x,y] where board[x,y] == 1
-        for x, y in current_player_positions:
-            for dx, dy in directions:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < N and 0 <= ny < N:
-                    neighbors_of_current_player[nx, ny] = True
-
-        # Build a boolean mask of empty cells
-        empty_mask = (self.board == 0)
-
-        # Build a boolean mask for row 0
-        row0_mask = np.zeros((N, N), dtype=bool)
-        if current_player==1:
-            row0_mask[0, :] = True
+        # 2) Build a mask for the "home" row (row 0 for player 1, row N-1 for player 2)
+        row_mask = np.zeros((N, N), dtype=bool)
+        if current_player == 1:
+            row_mask[0, :] = True
         else:
-            row0_mask[N-1, :] = True
+            row_mask[N - 1, :] = True
 
-        # A legal move must be empty AND (in row 0 OR neighbor_of_1)
-        legal_mask = empty_mask & (row0_mask | neighbors_of_current_player)
+        # 3) Find all positions occupied by the current_player
+        current_positions = np.argwhere(board == current_player)
+        if len(current_positions) == 0:
+            # If the current player has no pieces on the board yet,
+            # only the home row cells are legal (and empty).
+            legal_mask = empty_mask & row_mask
+            legal_moves = list(zip(*np.where(legal_mask)))
+            return legal_moves
 
-        # Extract (x, y) coordinates from the mask
+        # 4) Vectorized neighbor computation
+        directions = np.array([
+            [-1, -1], [-1,  0], [-1,  1],
+            [ 0, -1],           [ 0,  1],
+            [ 1, -1], [ 1,  0], [ 1,  1]
+        ])  # shape = (8, 2)
+
+        # Expand current_positions by directions:
+        #   current_positions has shape (k, 2)
+        #   directions has shape (8, 2)
+        # -> neighbors has shape (k, 8, 2)
+        neighbors = current_positions[:, None, :] + directions[None, :, :]
+
+        # 5) Filter out-of-bounds neighbors
+        valid_x = (neighbors[:, :, 0] >= 0) & (neighbors[:, :, 0] < N)
+        valid_y = (neighbors[:, :, 1] >= 0) & (neighbors[:, :, 1] < N)
+        valid_mask = valid_x & valid_y
+
+        # Flatten the valid neighbors into a 2D array of shape (num_valid_neighbors, 2)
+        valid_neighbors = neighbors[valid_mask]
+
+        # 6) Create a boolean mask of neighbors of current_player
+        neighbors_of_current_player = np.zeros((N, N), dtype=bool)
+        neighbors_of_current_player[valid_neighbors[:, 0],
+        valid_neighbors[:, 1]] = True
+
+        # 7) Combine masks: a legal move is empty AND (in home row OR is neighbor)
+        legal_mask = empty_mask & (row_mask | neighbors_of_current_player)
+
+        # 8) Extract coordinates and return
         legal_moves = list(zip(*np.where(legal_mask)))
-
         return legal_moves
+
 
     def is_fully_expanded(self):
         """Check if all possible children (moves) are expanded."""
-        if len(self.children) == len(self.get_legal_moves()):
+        if len(self.get_legal_moves())==0 and len(self.children) != 0 and not self.is_terminal():
+            return True
+        elif len(self.children) == len(self.get_legal_moves()) and len(self.get_legal_moves()) > 0:
             return True
         return False
 
@@ -130,16 +155,16 @@ class MCT_node:
         for child in self.children:
             if child.visits == 0:
                 return child  # if any child is unvisited, pick it immediately
-            uct_value = (child.wins / child.visits) + c_param * math.sqrt(
-                math.log(self.visits) / child.visits
-            )
+            uct_value = (child.wins / child.visits) + c_param * math.sqrt(math.log(self.visits) / child.visits)
             if uct_value > best_value:
                 best_value = uct_value
                 best_nodes = [child]
             elif math.isclose(uct_value, best_value):
                 best_nodes.append(child)
+        best_node = random.choice(best_nodes)
+        return best_node  # break ties randomly
 
-        return random.choice(best_nodes)  # break ties randomly
+
 
     def make_new_child(self, move):
         new_child = copy.deepcopy(self)
@@ -154,17 +179,30 @@ class MCT_node:
             new_child.current_player = 1
         return new_child
 
+    def make_new_blocked_child(self):
+        new_child = copy.deepcopy(self)
+        new_child.reset_node(parent=self, move='blocked')
+        if new_child.current_player == 1:
+            new_child.current_player = 2
+        else:
+            new_child.current_player = 1
+        return new_child
+
     def expand(self):
         """Create a new child node for one of the untried moves."""
         tried_moves = [child.move for child in self.children]
         possible_moves = self.get_legal_moves()
+
         for move in possible_moves:
             if move not in tried_moves:
                 child_node = self.make_new_child(move)
                 self.children.append(child_node)
                 return child_node
-        # If no moves are left, return None
-        return None
+
+        if len(possible_moves) == 0:
+            child_node = self.make_new_blocked_child()
+            self.children.append(child_node)
+            return child_node
 
     def update(self, result):
         """

@@ -69,10 +69,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     # No moves to expand; continue
                     continue
 
-            print('check')
             # 3. SIMULATION (ROLL-OUT)
+            t0 = time.time()
             result = rollout(node)
-            print('ppp')
+            #print(time.time() - t0)
 
             # 4. BACKPROPAGATION
             self.backpropagate(node, result)
