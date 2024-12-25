@@ -19,6 +19,22 @@ def calculate_mobility(node) -> float:
         simulated_state.current_player = 3 - node.current_player  # Swap current player
         return len(simulated_state.player_squares()) / N
 
+def unique_controlled_squares(node):
+    N = node.board.N
+    current_player_control_squares = node.player_squares()
+    simulated_node = copy.deepcopy(node)
+    simulated_node.current_player = 3 - node.current_player
+    other_player_control_squares = simulated_node.player_squares()
+    current_player_control_squares = set(current_player_control_squares)
+    other_player_control_squares = set(other_player_control_squares)
+
+    # Find unique coordinates in each list
+    unique_current_player = len(current_player_control_squares - other_player_control_squares)/N # Coordinates unique to list1
+    unique_other_player = len(other_player_control_squares - current_player_control_squares)/N  # Coordinates unique to list2
+    if node.current_player == node.my_player:
+        return unique_current_player - unique_other_player
+    else:
+        return unique_other_player - unique_current_player
 
 def score_one_empty_in_region(node) -> int:
     """
@@ -33,129 +49,49 @@ def score_one_empty_in_region(node) -> int:
     N = node.board.N  # Board size (N x N grid)
     n, m = node.board.n, node.board.m  # Block dimensions
 
-    def get_neighbors(row: int, col: int):
-        """
-        Get all neighboring cells (including diagonals) for a given cell within the board boundaries.
-
-        Parameters:
-        row (int): Row index.
-        col (int): Column index.
-
-        Returns:
-        list of tuples: List of (row, col) indices of neighboring cells.
-        """
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                      (-1, -1), (-1, 1), (1, -1), (1, 1)]
-        return [
-            (row + dr, col + dc)
-            for dr, dc in directions
-            if 0 <= row + dr < N and 0 <= col + dc < N
-        ]
-
-    def empty_cells_in_region(cells) -> int:
-        """
-        Count the number of empty cells in a given list of cells.
-
-        Parameters:
-        cells (list of tuples): List of (row, col) indices.
-
-        Returns:
-        int: Number of empty cells.
-        """
-        return sum(1 for r, c in cells if node.board.get((r, c)) == 0)
-
-    def occupied_neighbors(cells, occupied_squares) -> bool:
-        """
-        Check if any empty cell in the given cells has a neighbor in occupied_squares.
-
-        Parameters:
-        cells (list of tuples): List of (row, col) indices.
-        occupied_squares (set): Set of (row, col) indices occupied by a player.
-
-        Returns:
-        bool: True if any empty cell has an occupied neighbor, False otherwise.
-        """
-        for r, c in cells:
-            if node.board.get((r, c)) == 0:  # Only check empty cells
-                for neighbor in get_neighbors(r, c):
-                    if neighbor in occupied_squares:
-                        return True
-        return False
-
-    def get_row_cells(row: int):
-        """
-        Get all cell indices in a given row.
-
-        Parameters:
-        row (int): Row index.
-
-        Returns:
-        list of tuples: List of (row, col) indices.
-        """
-        return [(row, c) for c in range(N)]
-
-    def get_col_cells(col: int):
-        """
-        Get all cell indices in a given column.
-
-        Parameters:
-        col (int): Column index.
-
-        Returns:
-        list of tuples: List of (row, col) indices.
-        """
-        return [(r, col) for r in range(N)]
-
-    def get_block_cells(block_row: int, block_col: int):
-        """
-        Get all cell indices in a given block.
-
-        Parameters:
-        block_row (int): Block row index.
-        block_col (int): Block column index.
-
-        Returns:
-        list of tuples: List of (row, col) indices.
-        """
-        return [
-            (r, c)
-            for r in range(block_row * m, (block_row + 1) * m)
-            for c in range(block_col * n, (block_col + 1) * n)
-        ]
-
-    # Define players' occupied squares
     player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
     opponent_occupied = (node.occupied_squares2 if node.my_player == 1 else node.occupied_squares1)
 
-    score_one_empty = 0
+    def get_neighbors(cell):
+        """
+        Get all valid neighbors of a cell within the board boundaries.
+        """
+        row, col = cell
+        return [(row + dr, col + dc)
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+                if 0 <= row + dr < N and 0 <= col + dc < N]
 
-    def process_region(cells):
+    def process_region(cells, current_score):
         """
         Process a region (row, column, or block) and update the score if it has exactly one empty cell.
-
-        Parameters:
-        cells (list of tuples): List of (row, col) indices in the region.
         """
-        nonlocal score_one_empty
-        if empty_cells_in_region(cells) == 1:
+        empty_cells = [(r, c) for r, c in cells if node.board.get((r, c)) == 0]
+        if len(empty_cells) == 1:
+            empty_cell = empty_cells[0]
+            neighbors = get_neighbors(empty_cell)
             if node.current_player == node.my_player:
-                if occupied_neighbors(cells, opponent_occupied) and occupied_neighbors(cells, player_occupied):
-                    score_one_empty += 1
+                if any(n in opponent_occupied for n in neighbors) and any(n in player_occupied for n in neighbors):
+                    current_score += 1
             else:
-                if occupied_neighbors(cells, opponent_occupied):
-                    score_one_empty -= 1
+                if any(n in opponent_occupied for n in neighbors):
+                    current_score -= 1
+        return current_score
 
-    # Check rows and columns
+    score_one_empty = 0
+
+    # Process rows, columns, and blocks
     for i in range(N):
-        process_region(get_row_cells(i))
-        process_region(get_col_cells(i))
+        score_one_empty = process_region([(i, c) for c in range(N)], score_one_empty)  # Row
+        score_one_empty = process_region([(r, i) for r in range(N)], score_one_empty)  # Column
 
-    # Check blocks
     for block_row in range(n):
         for block_col in range(m):
-            process_region(get_block_cells(block_row, block_col))
+            score_one_empty = process_region([(r, c)
+                                              for r in range(block_row * m, (block_row + 1) * m)
+                                              for c in range(block_col * n, (block_col + 1) * n)], score_one_empty)
 
     return score_one_empty
+
 
 
 def calc_score_center_moves(node) -> float:
@@ -169,51 +105,28 @@ def calc_score_center_moves(node) -> float:
     float: The score difference between the current player and the opponent.
     """
     N = node.board.N  # Board size (N x N grid)
-    # calc center point for player after the middle row
-    if node.my_player == 1:
-        center_row = (N/2) + 0.5
-    else:
-        center_row = (N/2) - 1.5
-    center_col = N // 2 # center point is middle col
-    def distance_to_center(row: int, col: int) -> float:
+
+    # Calculate the center row based on the player's perspective
+    center_row = (N / 2) + 0.5 if node.my_player == 1 else (N / 2) - 1.5
+    center_col = N // 2  # Center column is the middle column
+
+    row_weight = 0.99  # Weight for row distance
+    col_weight = 0.01  # Weight for column distance
+
+    def weighted_distance(row: int, col: int) -> float:
         """
         Calculate the weighted distance of a cell to the center of the board.
-
-        Parameters:
-        row (int): Row index.
-        col (int): Column index.
-
-        Returns:
-        float: Weighted distance to the center.
         """
-        row_weight = 0.99  # Weight for row distance
-        col_weight = 0.01  # Weight for column distance
-        return ((row_weight * (row - center_row)) ** 2 + (col_weight * (col - center_col)) ** 2) ** 0.5
+        return (((row - center_row) * row_weight) ** 2 + ((col - center_col) * col_weight) ** 2) ** 0.5
 
-    def calculate_player_score(occupied_squares) -> float:
-        """
-        Calculate the proximity score for a player based on their occupied squares.
+    # Calculate proximity score for player 1
+    player1_score = sum(max(0, N - weighted_distance(row, col)) for row, col in node.occupied_squares1) / N
 
-        Parameters:
-        occupied_squares (list of tuples): List of (row, col) indices occupied by the player.
-
-        Returns:
-        float: The proximity score.
-        """
-        proximity_score = 0
-        for row, col in occupied_squares:
-            proximity_score += max(0, N - distance_to_center(row, col))  # Reward closer cells
-        return proximity_score / N
-
-    # Get scores for both players based on their occupied squares
-    player1_score = calculate_player_score(node.occupied_squares1)
-    player2_score = calculate_player_score(node.occupied_squares2)
+    # Calculate proximity score for player 2
+    player2_score = sum(max(0, N - weighted_distance(row, col)) for row, col in node.occupied_squares2) / N
 
     # Return the evaluation from the perspective of the current player
-    if node.my_player == 1:
-        return player1_score - player2_score
-    else:
-        return player2_score - player1_score
+    return player1_score - player2_score if node.my_player == 1 else player2_score - player1_score
 
 
 def calculate_score_difference(node) -> float:
@@ -273,10 +186,17 @@ def evaluate_node(node) -> float:
     score_diff_game = calculate_score_difference(node)
     score_center = calc_score_center_moves(node)
     score_one_empty = score_one_empty_in_region(node)
-    score_mobility = calculate_mobility(node)
     punish_corner_score = punish_corner(node)
+    unique_control = unique_controlled_squares(node)
 
-    eval_func = score_diff_game + score_mobility + score_one_empty + score_center + punish_corner_score
-
+    eval_func = score_diff_game + score_one_empty + score_center + punish_corner_score + unique_control
+    print(
+        f"score_diff_game: {score_diff_game}, "
+        f"score_one_empty: {score_one_empty}, "
+        f"score_center: {score_center}, "
+        f"punish_corner_score: {punish_corner_score}, "
+        f"unique_control: {unique_control}, "
+        f"eval_func: {eval_func}\n"
+    )
     return eval_func
 

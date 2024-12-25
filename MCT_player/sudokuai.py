@@ -88,4 +88,4 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                             best_ratio = win_ratio
                             best_move = child.move
                 self.propose_move(Move(best_move, solved_board_dict[best_move]))
-            #print(iter)
+            print(iter)

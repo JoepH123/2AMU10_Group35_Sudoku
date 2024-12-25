@@ -140,7 +140,7 @@ class MCT_node:
         else:
             return 0
 
-    def best_child(self, c_param=2):
+    def best_child(self, c_param=1.5):
         """
         Use UCB1 to select a child node.
         UCB = (wins / visits) + c_param * sqrt(ln(parent_visits) / visits)
