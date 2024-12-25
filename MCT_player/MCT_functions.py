@@ -6,13 +6,11 @@ class MCT_node:
     def __init__(self, gamestate, parent=None, move=None):
         self.my_player = gamestate.current_player
         self.current_player = gamestate.current_player
-        self.occupied_squares1 = gamestate.occupied_squares1
-        self.occupied_squares2 = gamestate.occupied_squares2
         self.N = gamestate.board.N
         self.n = gamestate.board.n
         self.m = gamestate.board.m
         self.scores = gamestate.scores
-        self.board = self.create_board()
+        self.board = self.create_board(gamestate.occupied_squares1, gamestate.occupied_squares2)
         self.parent = parent        # parent Node
         self.move = move            # move that led to this state
         self.children = []
@@ -26,20 +24,19 @@ class MCT_node:
         self.visits = 0
         self.wins = 0
 
-    def create_board(self):
+    def create_board(self, occupied_squares1, occupied_squares2):
         board = np.zeros((self.N, self.N), dtype=int)
 
         # Convert lists of tuples into NumPy arrays (if they are not empty)
-        if self.occupied_squares1:
-            px, py = np.array(self.occupied_squares1).T  # Split into x and y arrays
+        if occupied_squares1:
+            px, py = np.array(occupied_squares1).T  # Split into x and y arrays
             board[px, py] = 1
 
-        if self.occupied_squares2:
-            ox, oy = np.array(self.occupied_squares2).T
+        if occupied_squares2:
+            ox, oy = np.array(occupied_squares2).T
             board[ox, oy] = 2
 
         return board
-
 
     def get_legal_moves(self):
         """
@@ -104,7 +101,6 @@ class MCT_node:
         legal_moves = list(zip(*np.where(legal_mask)))
         return legal_moves
 
-
     def is_fully_expanded(self):
         """Check if all possible children (moves) are expanded."""
         if len(self.get_legal_moves())==0 and len(self.children) != 0 and not self.is_terminal():
@@ -164,13 +160,10 @@ class MCT_node:
         best_node = random.choice(best_nodes)
         return best_node  # break ties randomly
 
-
-
     def make_new_child(self, move):
         new_child = copy.deepcopy(self)
         new_child.reset_node(parent=self, move=move)
         new_child.board[move] = self.current_player
-        new_child.occupied_squares1.append(move) if new_child.current_player == 1 else new_child.occupied_squares2.append(move)
         score = new_child.calculate_score(move)
         new_child.scores[new_child.current_player - 1] += score
         if new_child.current_player == 1:
@@ -212,8 +205,3 @@ class MCT_node:
         """
         self.visits += 1
         self.wins += result
-
-
-
-
-

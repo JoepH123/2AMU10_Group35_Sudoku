@@ -4,7 +4,7 @@ import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .MCT_functions import *
-from .roll_out_functions import *
+from .playout_functions import *
 from .sudoku_solver import SudokuSolver
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
@@ -56,7 +56,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         root_node = MCT_node(game_state)
 
-        for _ in range(1000):
+        for iter in range(1000):
             # 1. SELECTION: start at root node and select until leaf
             node = root_node
             while not node.is_terminal() and node.is_fully_expanded():
@@ -71,20 +71,21 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
             # 3. SIMULATION (ROLL-OUT)
             t0 = time.time()
-            result = rollout(node)
+            result = playout(node)
             #print(time.time() - t0)
 
             # 4. BACKPROPAGATION
             self.backpropagate(node, result)
 
             # After iterations, pick the child with the highest win rate
-            best_move = None
-            best_ratio = -float('inf')
-            for child in root_node.children:
-                if child.visits > 0:
-                    win_ratio = child.wins / child.visits
-                    if win_ratio > best_ratio:
-                        best_ratio = win_ratio
-                        best_move = child.move
-            self.propose_move(Move(best_move, solved_board_dict[best_move]))
-            print(_)
+            if iter%10==0:
+                best_move = None
+                best_ratio = -float('inf')
+                for child in root_node.children:
+                    if child.visits > 0:
+                        win_ratio = child.wins / child.visits
+                        if win_ratio > best_ratio:
+                            best_ratio = win_ratio
+                            best_move = child.move
+                self.propose_move(Move(best_move, solved_board_dict[best_move]))
+            #print(iter)
