@@ -6,9 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="677bae09-3ab8-4d56-bab2-d8b04246a4a9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MCT_player/MCT_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/MCT_player/MCT_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MCT_player/sudokuai.py" beforeDir="false" afterPath="$PROJECT_DIR$/MCT_player/sudokuai.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stijn_player/evaluation_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/stijn_player/evaluation_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stijn_player/hard_coded_moves.py" beforeDir="false" afterPath="$PROJECT_DIR$/stijn_player/hard_coded_moves.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/stijn_player/sudokuai.py" beforeDir="false" afterPath="$PROJECT_DIR$/stijn_player/sudokuai.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -35,13 +34,13 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Users/20203666/Documents/GitHub/2AMU10_Group35_Sudoku/MCT_player"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/20203666/Documents/GitHub/2AMU10_Group35_Sudoku/MCT_player&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\20203666\Documents\GitHub\2AMU10_Group35_Sudoku\MCT_player" />

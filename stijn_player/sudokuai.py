@@ -36,6 +36,42 @@ class NodeGameState(GameState):
         """
         return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
 
+    def other_player_squares(self):
+        """
+        Returns the squares where the current player can play, or None if all squares are allowed.
+        """
+        allowed_squares = self.allowed_squares2 if self.current_player == 1 else self.allowed_squares1
+        occupied_squares = self.occupied_squares2 if self.current_player == 1 else self.occupied_squares1
+        N = self.board.N
+
+        if allowed_squares is None:
+            return None
+
+        def is_empty(square) -> bool:
+            return self.board.get(square) == SudokuBoard.empty
+
+        def neighbors(square):
+            row, col = square
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    if dr == 0 and dc == 0:
+                        continue
+                    r, c = row + dr, col + dc
+                    if 0 <= r < N and 0 <= c < N:
+                        yield r, c
+
+        # add the empty allowed squares
+        result = [s for s in allowed_squares if is_empty(s)]
+
+        # add the empty neighbors to result
+        for s1 in occupied_squares:
+            for s2 in neighbors(s1):
+                if is_empty(s2):
+                    result.append(s2)
+
+        # remove duplicates
+        return sorted(list(set(result)))
+
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
@@ -285,7 +321,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Check for heuristic-based moves and propose if available
         heuristic_move = get_heuristic_moves(root_node)
-        if heuristic_move:
+        if heuristic_move and len(root_node.other_player_squares())!=0:
             self.propose_move(heuristic_move)
             return
 

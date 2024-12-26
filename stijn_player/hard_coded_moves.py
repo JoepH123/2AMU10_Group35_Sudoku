@@ -11,11 +11,12 @@ def get_heuristic_moves(node):
     Returns:
     - A Move object if a valid move is found, else False.
     """
+    m = node.board.m
     # Determine the squares occupied by the current player.
-    current_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
+    my_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
 
     # If the current player has fewer than 2 occupied squares, compute start moves.
-    if len(current_player_occupied) < 2:
+    if len(my_player_occupied) < m:
         return compute_start_moves(node)
 
     # Attempt to defend the corner if applicable.
@@ -30,7 +31,8 @@ def get_heuristic_moves(node):
 
 def defend_corner(node):
     """
-    Check and defend a vulnerable corner if the opponent poses a threat.
+    Check and defend a vulnerable corner (of size m x n) if the opponent poses a threat.
+    Now generalized to depend on both m and n for risk squares and defensive stone placement.
 
     Parameters:
     - node: The current game state node.
@@ -38,66 +40,129 @@ def defend_corner(node):
     Returns:
     - A Move object if a defensive move is necessary, else False.
     """
+
+    # The board is N x N, where N = m * n
     N = node.board.N
+    m = node.board.m
+    n = node.board.n
+
     if node.my_player == 1:
-        # if cells are not empty blocking corner has no purpose
-        if not (node.board.get((0, 0)) == 0 and node.board.get((1, 0)) == 0):
-            return False
+        # ----------------------------------------
+        # 1) Check the top-left corner region:
+        #    rows in [0..m-1], cols in [0..n-1].
+        #    If ANY of these squares is NOT empty, no reason to defend.
+        # ----------------------------------------
+        for row in range(m):
+            for col in range(n-1):
+                if node.board.get((row, col)) != 0:
+                    return False
+
+        # ----------------------------------------
+        # 2) Identify risk squares for Player 1:
+        #    row = m, for all cols in [0..n-1].
+        #    If the opponent occupies ANY of those squares,
+        #    we place a defensive stone at (m-1, col).
+        # ----------------------------------------
         opponent_occupied = node.occupied_squares2
-        #check if risk squares are occupied bu opponent
-        risk_squares = [(2,1), (2,0)]
-        for sq in risk_squares:
-            if sq in opponent_occupied:
-                coordinates = (1,0)
-                return Move(coordinates, node.solved_board_dict[coordinates])
+        player_occupied = node.occupied_squares1
+        player_squares = node.player_squares()
+        for col in range(n):
+            for i in range(n-1):
+                risk_sq = (m+i, col)
+                if risk_sq in opponent_occupied:
+                    for col2 in range(n-1):
+                        # Place defensive stone just one row up.
+                        defense_coordinates = (m - 1, col2)
+                        if defense_coordinates not in player_occupied and defense_coordinates in player_squares:
+                            return Move(defense_coordinates, node.solved_board_dict[defense_coordinates])
 
     elif node.my_player == 2:
-        # if cells are not empty blocking corner has no purpose
-        if not (node.board.get((N-1, 0)) == 0 and node.board.get((N-2, 0)) == 0):
-            return False
+        # ----------------------------------------
+        # 1) Check the bottom-left corner region:
+        #    rows in [N-m..N-1], cols in [0..n-1].
+        #    If ANY of these squares is NOT empty, no reason to defend.
+        # ----------------------------------------
+        for row in range(N - m, N):
+            for col in range(n-1):
+                if node.board.get((row, col)) != 0:
+                    return False
+
+        # ----------------------------------------
+        # 2) Identify risk squares for Player 2:
+        #    row = N - (m+1), for all cols in [0..n-1].
+        #    If the opponent occupies ANY of those squares,
+        #    we place a defensive stone at (N - m, col).
+        # ----------------------------------------
+
         opponent_occupied = node.occupied_squares1
-        #check if risk squares are occupied bu opponent
-        risk_squares = [(N-3,1), (N-3,0)]
-        for sq in risk_squares:
-            if sq in opponent_occupied:
-                coordinates = (N-2,0)
-                return Move(coordinates, node.solved_board_dict[coordinates])
+        player_occupied = node.occupied_squares2
+        player_squares = node.player_squares()
+        for col in range(n):
+            for i in range(n-1):
+                risk_sq = (N - (m + 1 + i), col)
+                if risk_sq in opponent_occupied:
+                    for col2 in range(n-1):
+                        # Place defensive stone just one row closer to bottom corner.
+                        defense_coordinates = (N - m, col2)
+                        if defense_coordinates not in player_occupied and defense_coordinates in player_squares:
+                            return Move(defense_coordinates, node.solved_board_dict[defense_coordinates])
+
+    # If no threat is found or no corner defense is needed:
     return False
+
 
 def compute_start_moves(node):
     """
-    Compute the initial moves for a player based on their current state.
+    Compute the initial (opening) moves for a player based on their current state.
+    We allow exactly m "opening moves" (vertically) for each player.
 
     Parameters:
     - node: The current game state node.
 
     Returns:
-    - A Move object for the initial move, or False if no valid move is found.
+    - A Move object for the initial move, or False if no valid opening move is found.
     """
-    N = node.board.N
+    # N = total board dimension, where N = m*n
+    # m, n = region sizes such that each region is m*n in size.
+    # For demonstration, assume node has attributes node.m and node.n as well.
+    N = node.board.N  # e.g., N = m*n
+    m = node.board.m
+    n = node.board.n   # Not strictly needed if we only require m.
+
+    # Occupied squares for the current player
+    player_occupied = (
+        node.occupied_squares1
+        if node.my_player == 1
+        else node.occupied_squares2
+    )
+
+    # How many opening moves has the player already used?
+    # This is simply the count of how many squares are occupied by that player.
+    moves_used = len(player_occupied)
+
+    # If we've already used up m moves, return False (no special opening move).
+    if moves_used >= m:
+        return False
+
     if node.my_player == 1:
-        # Define players' occupied squares
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        if len(player_occupied)==0:
-            coordinates = (0,1)
-            return Move(coordinates, node.solved_board_dict[coordinates])
-
-        if len(player_occupied)==1:
-            coordinates = (1,1)
-            return Move(coordinates, node.solved_board_dict[coordinates])
-
+        # Player 1: place stones from top to bottom
+        # E.g., (0,1), (1,1), (2,1), ... up to (m-1,1)
+        row = moves_used
+        col = n-1
+        coordinates = (row, col)
+        return Move(coordinates, node.solved_board_dict[coordinates])
 
     elif node.my_player == 2:
-        # Define players' occupied squares
-        player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        if len(player_occupied)==0:
-            coordinates = (N-1,1)
-            return Move(coordinates, node.solved_board_dict[coordinates])
-        if len(player_occupied)==1:
-            coordinates = (N-2,1)
-            return Move(coordinates, node.solved_board_dict[coordinates])
+        # Player 2: place stones from bottom to top
+        # E.g., (N-1,1), (N-2,1), ... up to (N-m,1)
+        row = N - 1 - moves_used
+        col = n-1
+        coordinates = (row, col)
+        return Move(coordinates, node.solved_board_dict[coordinates])
 
+    # If for some reason the player is neither 1 nor 2, return False.
     return False
+
 
 
 def find_path_player_left(node):

@@ -14,17 +14,12 @@ def calculate_mobility(node) -> float:
     if node.my_player == node.current_player:  # If it is our turn
         return len(node.player_squares()) / N
     else:  # If it is not our turn
-        # Simulate the state with our player to move
-        simulated_state = copy.deepcopy(node)
-        simulated_state.current_player = 3 - node.current_player  # Swap current player
-        return len(simulated_state.player_squares()) / N
+        return len(node.other_player_squares()) / N
 
 def unique_controlled_squares(node):
     N = node.board.N
     current_player_control_squares = node.player_squares()
-    simulated_node = copy.deepcopy(node)
-    simulated_node.current_player = 3 - node.current_player
-    other_player_control_squares = simulated_node.player_squares()
+    other_player_control_squares = node.other_player_squares()
     current_player_control_squares = set(current_player_control_squares)
     other_player_control_squares = set(other_player_control_squares)
 
