@@ -29,6 +29,7 @@ class NodeGameState(GameState):
         solver = SudokuSolver(game_state.board.squares, game_state.board.N, game_state.board.m, game_state.board.n)
         solved_board_dict = solver.get_board_as_dict()
         self.solved_board_dict = solved_board_dict
+        self.game_phase = 'mid'
 
     def hash_key(self):
         """
@@ -309,7 +310,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
-
+        N = root_node.board.N
+        if N*N - len(root_node.occupied_squares1 + root_node.occupied_squares2) <= N:
+            root_node.game_phase = 'late'
+            print('late', '))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))')
         # Reset the nodes explored counter for this computation
         self.nodes_explored = 0
 
