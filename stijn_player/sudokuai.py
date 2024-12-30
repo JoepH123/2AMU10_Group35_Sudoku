@@ -79,7 +79,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     def __init__(self):
         """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
-        self.transposition_table = {}
+        transposition_table = self.load()
+        self.transposition_table = {} if transposition_table is None else transposition_table
         self.killer_moves = {i: [] for i in range(10)}  # Dictionary to store killer moves for each depth
         self.nodes_explored = 0  # Add this line to initialize the counter
 
@@ -306,7 +307,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
             None: Proposes the best move directly using self.propose_move.
         """
-
+        self.player_number = game_state.current_player
+        print(self.transposition_table)
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
@@ -352,6 +354,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
                 # Increment the counter for nodes explored
                 counter_nodes += 1
+                #print(self.transposition_table)
+                self.save(self.transposition_table)
                 #print(counter_nodes)
 
             # Output the progress for the current depth

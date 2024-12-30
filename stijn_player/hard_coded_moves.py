@@ -350,7 +350,6 @@ def get_block_area_move(node):
         # Return the first empty cell in that path
         empty_cell = next((cell for cell in longest if node.board.get(cell) == 0), None)
         if empty_cell:
-            print('found path ##################################################################################################')
             return Move(empty_cell, node.solved_board_dict[empty_cell])
     return False
 

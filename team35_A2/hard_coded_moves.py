@@ -15,7 +15,7 @@ def get_heuristic_moves(node):
     current_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
 
     # If the current player has fewer than 2 occupied squares, compute start moves.
-    if len(current_player_occupied) < 2:
+    if len(current_player_occupied) < 3:
         return compute_start_moves(node)
 
     # Attempt to defend the corner if applicable.
@@ -78,11 +78,11 @@ def compute_start_moves(node):
     if node.my_player == 1:
         # Define players' occupied squares
         player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        if len(player_occupied)==0:
+        if node.board.get((0,1))==0:
             coordinates = (0,1)
             return Move(coordinates, node.solved_board_dict[coordinates])
 
-        if len(player_occupied)==1:
+        if node.board.get((1,1))==0:
             coordinates = (1,1)
             return Move(coordinates, node.solved_board_dict[coordinates])
 
@@ -90,10 +90,10 @@ def compute_start_moves(node):
     elif node.my_player == 2:
         # Define players' occupied squares
         player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
-        if len(player_occupied)==0:
+        if node.board.get((N-1,1))==0:
             coordinates = (N-1,1)
             return Move(coordinates, node.solved_board_dict[coordinates])
-        if len(player_occupied)==1:
+        if node.board.get((N-2,1))==0:
             coordinates = (N-2,1)
             return Move(coordinates, node.solved_board_dict[coordinates])
 
