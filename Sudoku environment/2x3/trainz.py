@@ -1,5 +1,3 @@
-# train_6x6.py
-
 import random
 import numpy as np
 import time
@@ -9,9 +7,10 @@ import pickle
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
+
 from env import DQLGameState6x6
 from DQN import DQNAgent
-from test import plot_board
+from test import plot_board  
 
 def check_device():
     if torch.cuda.is_available():
@@ -37,11 +36,10 @@ def save_model_as_pkl(agent, epsilon, filename="dqn_6x6_model.pkl"):
 
 def make_state(board, player=1):
     """
-    board shape: (6,6), values in {-1, 0, +1}.
-    Maak 3 kanalen:
-      kanaal 0: cellen == +player
-      kanaal 1: cellen == -player
-      kanaal 2: cellen == 0
+    Maakt 3 kanalen uit het 6x6 bord:
+     - Kanaal0: cellen == +player
+     - Kanaal1: cellen == -player
+     - Kanaal2: cellen == 0
     """
     p1_channel = (board == player).astype(np.float32)
     p2_channel = (board == -player).astype(np.float32)
@@ -59,7 +57,7 @@ def main():
 
     num_episodes = 80_000
     agent = DQNAgent(
-        lr=1e-3,        # iets hogere lr
+        lr=1e-3,           # Leer wat sneller
         gamma=0.99,
         batch_size=64,
         replay_size=100000,
@@ -67,15 +65,15 @@ def main():
         tau=0.005
     )
 
-    # Epsilon decay
-    epsilon_start = 0.6
-    epsilon_mid = 0.1
-    epsilon_end = 0.01
-    eps_phase1_steps = 40_000
-    eps_phase2_steps = 40_000
-    total_decay = eps_phase1_steps + eps_phase2_steps
-    eps_step_phase1 = (epsilon_start - epsilon_mid) / eps_phase1_steps
-    eps_step_phase2 = (epsilon_mid - epsilon_end) / eps_phase2_steps
+    # Epsilon: start hoger (0.8) -> mid (0.3) -> end (0.05)
+    eps_start = 0.8
+    eps_mid = 0.3
+    eps_end = 0.05
+    eps_phase1 = 40_000
+    eps_phase2 = 40_000
+    total_decay = eps_phase1 + eps_phase2
+    step_phase1 = (eps_start - eps_mid) / eps_phase1
+    step_phase2 = (eps_mid - eps_end) / eps_phase2
 
     # Stats
     win_interval = 500
@@ -85,19 +83,23 @@ def main():
     winrate_list = []
     intervals_list = []
 
+    # Extra
+    normalization_factor = 7.0
+    mobility_coeff = 0.05
+
     env = DQLGameState6x6()
 
-    for episode in tqdm(range(num_episodes), desc="Training 6x6 DQN", unit="episode"):
+    for episode in tqdm(range(num_episodes), desc="Training 6x6 with cumReward+mobility", unit="episode"):
         # Bepaal epsilon
-        if episode < eps_phase1_steps:
-            epsilon = max(epsilon_mid, epsilon_start - episode * eps_step_phase1)
+        if episode < eps_phase1:
+            epsilon = max(eps_mid, eps_start - episode * step_phase1)
         elif episode < total_decay:
-            steps_in_phase2 = episode - eps_phase1_steps
-            epsilon = max(epsilon_end, epsilon_mid - steps_in_phase2 * eps_step_phase2)
+            steps_in_phase2 = episode - eps_phase1
+            epsilon = max(eps_end, eps_mid - steps_in_phase2 * step_phase2)
         else:
-            epsilon = epsilon_end
+            epsilon = eps_end
 
-        # Random bepalen of agent player=1 of player=-1 is
+        # Agent or Opp first
         if random.random() < 0.5:
             agent_player = 1
         else:
@@ -105,113 +107,178 @@ def main():
         opp_player = -agent_player
 
         env.reset()
-        plot_board(env.board, title= 'agent is: '+str(agent_player), pause_time=2)
+        #plot_board(env.board, title=f"Episode {episode}: Start (Agent={agent_player})", pause_time=1.5)
 
-        # Als de opponent start
+        # If opp starts
         if env.current_player == opp_player:
-            # Opponent random move
             opp_action = random_opponent_move(env, opp_player)
             if opp_action is not None:
-                rew, done, info = env.step(opp_action)
+                opp_reward, done_opp, info_opp = env.step(opp_action)
+                #plot_board(env.board, title=f"Opponent first move rew={opp_reward}", pause_time=1.5)
 
         done = False
         agent_score = 0
         opp_score = 0
-        episode_reward = 0.0
 
         while not done:
             if env.current_player == agent_player:
                 valid_moves = env.get_all_moves(player=agent_player)
                 if len(valid_moves) == 0:
-                    # Kan niet zetten
                     env.player_can_move[agent_player] = False
-                    # Check of opponent kan
+                    # Check opponent
                     opp_moves = env.get_all_moves(player=opp_player)
                     if len(opp_moves) == 0:
                         done = True
                     else:
-                        # Wissel naar opponent
                         env.current_player = opp_player
                     continue
-                # Anders wel moves
+
+                # Mobility BEFORE
+                agent_moves_bef = len(valid_moves)
+                opp_moves_bef = len(env.get_all_moves(player=opp_player))
+
                 curr_board = env.board.copy()
                 curr_state = make_state(curr_board, player=agent_player)
 
                 action = agent.select_action(curr_state, valid_moves, epsilon)
-                reward, done_step, info = env.step(action)
-                plot_board(env.board, title= 'reward is: '+str(reward), pause_time=2)
-                # done_step => check of direct game end
+                agent_reward, doneA, infoA = env.step(action)
+                #plot_board(env.board, title=f"Agent move rew={agent_reward}", pause_time=1.5)
 
-                next_board = env.board.copy()
-                next_state = make_state(next_board, player=agent_player)
-                agent.store_transition(curr_state, action, reward, next_state, done_step)
-                agent.update()
+                agent_score, opp_score = infoA["score"]
 
-                episode_reward += reward
-                agent_score, opp_score = info["score"]
+                if doneA:
+                    # Mobility na agentmove
+                    agent_moves_after = len(env.get_all_moves(player=agent_player))
+                    opp_moves_after = len(env.get_all_moves(player=opp_player))
+                    mob_rw = mobility_coeff * ((agent_moves_after - agent_moves_bef)
+                                               - (opp_moves_after - opp_moves_bef))
+                    combined_reward = (agent_reward + mob_rw) / normalization_factor
 
-                if done_step:
+                    next_state = make_state(env.board.copy(), player=agent_player)
+                    agent.store_transition(curr_state, action, combined_reward, next_state, True)
+                    agent.update()
                     done = True
                 else:
-                    # check next player
-                    pass
+                    # Opponent tries
+                    opp_action = random_opponent_move(env, opp_player)
+                    if opp_action is None:
+                        # Opponent can't move => no oppReward
+                        agent_moves_after = len(env.get_all_moves(player=agent_player))
+                        opp_moves_after = len(env.get_all_moves(player=opp_player))
+                        mob_rw = mobility_coeff * ((agent_moves_after - agent_moves_bef)
+                                                   - (opp_moves_after - opp_moves_bef))
+                        combined_reward = (agent_reward) / normalization_factor # no mobility reward, opp has no mobility at all
+
+                        next_state = make_state(env.board.copy(), player=agent_player)
+                        agent.store_transition(curr_state, action, combined_reward, next_state, False)
+                        #plot_board(env.board, title=f"Agent continues rew={combined_reward}", pause_time=5)
+                        agent.update()
+                        if env.is_terminal():
+                            done = True
+                    else:
+                        opp_rew, done_opp, info_opp = env.step(opp_action)
+                        #plot_board(env.board, title=f"Opponent rew={opp_rew}", pause_time=1.5)
+                        agent_score, opp_score = info_opp["score"]
+
+                        # Mobility na agent + 1 opp move
+                        agent_moves_after = len(env.get_all_moves(player=agent_player))
+                        opp_moves_after = len(env.get_all_moves(player=opp_player))
+                        mob_rw = mobility_coeff * ((agent_moves_after - agent_moves_bef)
+                                                   - (opp_moves_after - opp_moves_bef))
+
+                        combined_reward = (agent_reward - opp_rew + mob_rw)
+
+                        # Check of agent nu KAN
+                        agent_moves_now = env.get_all_moves(player=agent_player)
+                        if len(agent_moves_now) == 0 and not done_opp:
+                            # Agent kan niet meer, maar spel is niet done => Opponent kan doorspelen
+                            extra_opp_rew = 0.0
+                            done_extra = done_opp
+                            while True:
+                                next_opp_moves = env.get_all_moves(player=opp_player)
+                                if not next_opp_moves:
+                                    # nu is t mischien done
+                                    if env.is_terminal():
+                                        done_extra = True
+                                    break
+                                next_opp_action = random_opponent_move(env, opp_player)
+                                if next_opp_action is None:
+                                    if env.is_terminal():
+                                        done_extra = True
+                                    break
+                                r_opp2, done2, info2 = env.step(next_opp_action)
+                                extra_opp_rew += r_opp2
+                                if done2:
+                                    done_extra = True
+                                    break
+
+                            combined_reward = (combined_reward - extra_opp_rew) / normalization_factor
+                            next_state = make_state(env.board.copy(), player=agent_player)
+                            agent.store_transition(curr_state, action, combined_reward, next_state, True)
+                            #plot_board(env.board, title=f"Opp continues rew={combined_reward}", pause_time=5)
+                            agent.update()
+                            done = True
+                        else:
+                            # Normaal scenario
+                            combined_reward /= normalization_factor
+                            next_state = make_state(env.board.copy(), player=agent_player)
+                            agent.store_transition(curr_state, action, combined_reward, next_state, done_opp)
+                            #plot_board(env.board, title=f"Combined reward={combined_reward}", pause_time=2)
+                            agent.update()
+                            if done_opp:
+                                done = True
             else:
-                # Opponent's turn (random)
+                # Opponent turn
                 opp_moves = env.get_all_moves(player=opp_player)
-                if len(opp_moves) == 0:
+                if not opp_moves:
                     env.player_can_move[opp_player] = False
-                    # check agent moves
-                    agent_moves = env.get_all_moves(player=agent_player)
-                    if len(agent_moves) == 0:
+                    agent_moves_2 = env.get_all_moves(player=agent_player)
+                    if not agent_moves_2:
                         done = True
                     else:
                         env.current_player = agent_player
                 else:
-                    opp_action = random_opponent_move(env, opp_player)
-                    if opp_action is not None:
-                        rew_opp, done_opp, info_opp = env.step(opp_action)
-                        plot_board(env.board, title= 'reward opponent is: '+str(rew_opp), pause_time=2)
-                        agent_score, opp_score = info_opp["score"]
-                        if done_opp:
-                            done = True
-                    else:
-                        # No action
+                    opp_a = random.choice(opp_moves)
+                    opp_rew, done_op, info_op = env.step(opp_a)
+                    #plot_board(env.board, title=f"Opp turn rew={opp_rew}", pause_time=1.5)
+                    if done_op:
                         done = True
-            # while loop continue
 
-        # Einde episode
+    # Einde training
+        agent_score = env.score[0] if agent_player == 1 else env.score[1]
+        opp_score = env.score[1] if agent_player == 1 else env.score[0]
+
         if agent_score > opp_score:
             win_count += 1
         episodes_count += 1
 
-        # Log om de 500 episodes
         if (episode+1) % win_interval == 0:
-            win_rate = win_count / episodes_count
-            print(f"Episode {episode+1}/{num_episodes}, Eps={epsilon:.3f}, WinRate(last {win_interval})={win_rate:.2f}")
+            w_rate = win_count / episodes_count
+            print(f"[Ep {episode+1}/{num_episodes}] Eps={epsilon:.3f}, WinRate={w_rate:.2f}")
             intervals_list.append(episode+1)
-            winrate_list.append(win_rate)
+            winrate_list.append(w_rate)
 
-            if win_rate > best_win_rate:
-                best_win_rate = win_rate
+            if w_rate > best_win_rate:
+                best_win_rate = w_rate
                 save_model_as_pkl(agent, epsilon, filename="dqn_6x6_best_model.pkl")
 
-            # reset for next interval
+            # Reset counters
             win_count = 0
             episodes_count = 0
 
-    # Opslaan model
+    # Save final
     save_model_as_pkl(agent, epsilon, filename="dqn_6x6_final_model.pkl")
 
-    # Plot winrate
+    # Plot
     plt.plot(intervals_list, winrate_list, label="Win Rate")
-    plt.xlabel("Episode")
+    plt.xlabel("Episodes")
     plt.ylabel("Win Rate")
-    plt.title("6x6 DQN Training")
+    plt.title("6x6 DQN Training - Mobility + Cumulative Opp Reward")
     plt.grid()
     plt.legend()
     plt.savefig("winrate_6x6.png")
     plt.close()
-    print("Done training 6x6 DQN.")
+    print("Done training 6x6 with cumulative negative reward + mobility reward.")
 
 
 if __name__ == "__main__":
