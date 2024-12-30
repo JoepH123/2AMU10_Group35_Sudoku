@@ -85,7 +85,7 @@ class DQLGameState:
 
         # Calculate reward for completing regions
         completed_regions = self._count_completed_regions_by_move((r, c))
-        reward = self._region_completion_reward(completed_regions)*100
+        reward = self._region_completion_reward(completed_regions)
 
         # Update scores
         if self.current_player == 1:
@@ -120,7 +120,6 @@ class DQLGameState:
                 pass
 
         done = self.is_terminal()
-        reward = reward/700 # normalise reward, max score + max_mobility
         return reward, done, {"score": self.score}
 
     def _region_completion_reward(self, regions_completed):

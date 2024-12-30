@@ -26,11 +26,10 @@ def load_model(filename="dqn_model_2x2.pkl"):
     print(f"Model loaded from {file_path}")
     return model
 
-
-def make_state(board):
+def make_state(board, player=1):
     """Create the one-hot encoded state representation."""
-    p1_channel = (board == 1).astype(np.float32)
-    p2_channel = (board == -1).astype(np.float32)
+    p1_channel = (board == player).astype(np.float32)
+    p2_channel = (board == -player).astype(np.float32)
     empty_channel = (board == 0).astype(np.float32)
     return np.stack([p1_channel, p2_channel, empty_channel], axis=0)  # (3,4,4)
 
@@ -139,7 +138,9 @@ def test_model(model, num_games=10):
 
             current_board = env.board.copy()
             state = make_state(current_board)
-            action = select_max_q_action(model, state, valid_moves)
+            action = select_max_q_action(model_2, state, valid_moves)
+            #action = select_action_score(env)
+            # action = select_action_score_or_mobility(env, player=1)
             reward, done, info = env.step(action)
             agent_score = info["score"][0]
             opponent_score = info["score"][1]
@@ -161,14 +162,46 @@ def test_model(model, num_games=10):
                     break
                 env.current_player = -env.current_player  # Switch back to agent
                 continue
+            
+            valid_moves = env.get_all_moves()
+            max_reward = 0.1
+            best_scoring_moves = []
 
-            opponent_action = random_opponent_move(env)
-            _, done, info = env.step(opponent_action)
+            env_copy_opp = env.clone()
+            env_copy_opp.current_player = -env_copy_opp.current_player
+            opp_valide_moves = env_copy_opp.get_all_moves()
+
+            for move in valid_moves:
+                # Maak een kopie van de staat om te simuleren
+                if move in opp_valide_moves:
+                    state_copy = env.clone()
+                    reward, done, _ = state_copy.step(move)
+
+                    if reward > max_reward:
+                        max_reward = reward
+                        best_scoring_moves = [move]
+                    elif reward == max_reward:
+                        best_scoring_moves.append(move)
+                else:
+                    continue
+
+            if best_scoring_moves:
+                opponent_action = random.choice(best_scoring_moves) 
+
+            else:
+                # current_board = env.board.copy()
+                # state = make_state(current_board, player=-1)
+                # opponent_action = select_max_q_action(model, state, valid_moves)
+                #opponent_action = select_action_score(env)
+                opponent_action = random_opponent_move(env)
+                _, done, info = env.step(opponent_action)
+
             agent_score = info["score"][0]
             opponent_score = info["score"][1]
+            #plot_board(env.board, title=f"Opponent's Move (Score: {agent_score} - {opponent_score})")
 
         # Final board state
-        #plot_board(env.board, title=f"Final State (Agent: {agent_score}, Opponent: {opponent_score})")
+        #plot_board(env.board, title=f"Final State (Agent: {agent_score}, Opponent: {opponent_score})", pause_time=5)
         if agent_score > opponent_score:
             wins += 1
         elif opponent_score > agent_score:
@@ -185,11 +218,64 @@ def test_model(model, num_games=10):
 
 
 
+# def test_model(model, num_games=10):
+#     """Test the trained model against a random opponent."""
+#     env = DQLGameState()
+#     wins, losses, draws = 0, 0, 0
+#     lost_games = []  # Opslaan van verloren potjes
+
+#     for game in range(num_games):
+#         env.reset()
+#         done = False
+#         agent_score, opponent_score = 0, 0
+#         moves = []  # Opslaan van zetten van het huidige potje
+
+#         while not done:
+#             # Agent's move
+#             valid_moves = env.get_all_moves()
+#             if len(valid_moves) > 0:
+#                 current_board = env.board.copy()
+#                 state = make_state(current_board)
+#                 action = select_max_q_action(model, state, valid_moves)
+#                 reward, done, info = env.step(action)
+#                 moves.append((env.current_player, action))  # Zet opslaan
+
+#                 agent_score = info["score"][0]
+#                 opponent_score = info["score"][1]
+#                 if done:
+#                     break
+
+#             # Opponent's move
+#             valid_moves = env.get_all_moves()
+#             if len(valid_moves) > 0:
+#                 opponent_action = random_opponent_move(env)
+#                 reward, done, info = env.step(opponent_action)
+#                 moves.append((env.current_player, opponent_action))  # Zet opslaan
+
+#                 agent_score = info["score"][0]
+#                 opponent_score = info["score"][1]
+
+#         # Result bepalen
+#         if agent_score > opponent_score:
+#             wins += 1
+#         elif agent_score < opponent_score:
+#             losses += 1
+#             lost_games.append(moves)  # Bewaar zetten van verloren potjes
+#         else:
+#             draws += 1
+
+#         print(f"Game {game + 1}: Agent {agent_score} - Opponent {opponent_score}")
+
+#     return wins, draws, losses, lost_games
+
+
+
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model(filename='9x9_greedy_1_best_dqn_model.pkl')
+    model = load_model(filename='9x9_greedy_3_best_dqn_model.pkl') # player 2
+    model_2 = load_model(filename='9x9_greedy_3_best_dqn_model.pkl') # player 1
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")
 
-    print(test_model(model, num_games=1000))
+    print(test_model(model, num_games=100))

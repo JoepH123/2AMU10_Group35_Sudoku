@@ -12,7 +12,7 @@ def calculate_mobility(state, player=-1):
     return len(state.get_all_moves())
 
 
-def select_action_score_or_mobility(state, player=-1):
+def select_action_score_or_mobility(state, opponent_agent=None, prob_random=0.1, player=-1):
     """
     Selecteert een actie die punten scoort; als er geen acties punten scoren,
     selecteert de actie met maximale mobiliteit.
@@ -50,10 +50,14 @@ def select_action_score_or_mobility(state, player=-1):
     # Kies een scorende zet als die bestaat, anders een zet met maximale mobiliteit
     if best_scoring_moves:
         return random.choice(best_scoring_moves)
+    else:
+        if random.random() < prob_random:
+            return random.choice(valid_moves)
+        
     return random.choice(best_moves_mobility) if best_moves_mobility else random.choice(valid_moves)
 
 
-def select_action_score(state):
+def select_action_score(state, opponent_agent=None, player=None):
     """
     Selecteert een actie die punten scoort; als er geen acties punten scoren,
     selecteert een random actie

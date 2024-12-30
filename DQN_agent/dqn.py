@@ -161,13 +161,6 @@ class DQNAgent:
             t_action_idx = t_action[0] * 9 + t_action[1]
             self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
 
-        if reward > 0.1 or reward < -0.1:
-            for i in range(3):
-                for (t_state, t_next_state, t_action) in augmented_transitions:
-                    t_action_idx = t_action[0] * 9 + t_action[1]
-                    self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
-
-
     def soft_update(self):
         # Soft update: target_param ← tau * policy_param + (1 - tau) * target_param
         for target_param, policy_param in zip(self.target_net.parameters(), self.policy_net.parameters()):
