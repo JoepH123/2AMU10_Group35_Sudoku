@@ -255,7 +255,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 alpha = max(alpha, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha:
+                if beta <= alpha and node.game_phase != 'late':
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
@@ -283,7 +283,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 beta = min(beta, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha:
+                if beta <= alpha and node.game_phase != 'late':
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
@@ -313,7 +313,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         N = root_node.board.N
         if N*N - len(root_node.occupied_squares1 + root_node.occupied_squares2) <= N:
             root_node.game_phase = 'late'
-            print('late', '))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))')
         # Reset the nodes explored counter for this computation
         self.nodes_explored = 0
 

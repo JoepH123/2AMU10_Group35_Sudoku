@@ -70,7 +70,7 @@ class SudokuSolver:
                     if num_candidates == 0:
                         return None  # No solution possible
                     if num_candidates < min_candidates:
-                        # Find cell with fewest candidates possible. 
+                        # Find cell with    fewest candidates possible.
                         min_candidates = num_candidates
                         target_cell = (row, col)
                         if min_candidates == 1:
