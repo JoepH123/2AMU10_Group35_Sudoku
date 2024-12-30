@@ -1,14 +1,16 @@
 #  (C) Copyright Wieger Wesselink 2021. Distributed under the GPL-3.0-or-later
 #  Software License, (See accompanying file LICENSE or copy at
 #  https://www.gnu.org/licenses/gpl-3.0.txt)
-import time
+
 import random
+import time
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
-from .evaluation_functions import evaluate_node, calculate_mobility, calculate_score_difference
+from .evaluate_functions import evaluate_node, calculate_mobility, calculate_score_difference
 from .sudoku_solver import SudokuSolver
 from .hard_coded_moves import get_heuristic_moves
+
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
@@ -29,49 +31,12 @@ class NodeGameState(GameState):
         solver = SudokuSolver(game_state.board.squares, game_state.board.N, game_state.board.m, game_state.board.n)
         solved_board_dict = solver.get_board_as_dict()
         self.solved_board_dict = solved_board_dict
-        self.game_phase = 'mid'
 
     def hash_key(self):
         """
         Generate a unique hash key for this node.
         """
         return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
-
-    def other_player_squares(self):
-        """
-        Returns the squares where the current player can play, or None if all squares are allowed.
-        """
-        allowed_squares = self.allowed_squares2 if self.current_player == 1 else self.allowed_squares1
-        occupied_squares = self.occupied_squares2 if self.current_player == 1 else self.occupied_squares1
-        N = self.board.N
-
-        if allowed_squares is None:
-            return None
-
-        def is_empty(square) -> bool:
-            return self.board.get(square) == SudokuBoard.empty
-
-        def neighbors(square):
-            row, col = square
-            for dr in (-1, 0, 1):
-                for dc in (-1, 0, 1):
-                    if dr == 0 and dc == 0:
-                        continue
-                    r, c = row + dr, col + dc
-                    if 0 <= r < N and 0 <= c < N:
-                        yield r, c
-
-        # add the empty allowed squares
-        result = [s for s in allowed_squares if is_empty(s)]
-
-        # add the empty neighbors to result
-        for s1 in occupied_squares:
-            for s2 in neighbors(s1):
-                if is_empty(s2):
-                    result.append(s2)
-
-        # remove duplicates
-        return sorted(list(set(result)))
 
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
@@ -135,34 +100,55 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
         - int: The score obtained from the move.
         """
-        N = node.board.N
-        board = [node.board.squares[i * N:(i + 1) * N] for i in range(N)]
+        board = node.board
+        N = board.N  # Size of the grid (N = n * m)
+        n, m = board.n, board.m  # Block dimensions
+        row, col = move.square  # Get the row and column of the move
 
-        n, m = node.board.n, node.board.m  # Block dimensions
-        x, y = move.square  # Get the row and column of the move
+        # Calculate the starting indices of the block
+        block_start_row = (row // m) * m
+        block_start_col = (col // n) * n
 
-        row_complete = all(cell != 0 for cell in board[x])
-        col_complete = all(row[y] != 0 for row in board)
+        def is_region_complete(values):
+            """
+            Check if a region (row, column, or block) is complete.
 
-        region_row = (x // m) * m
-        region_col = (y // n) * n
+            Parameters:
+            - values (list of int): The values in the region.
 
-        rows = board[region_row:region_row + m]
-        region = [row[region_col:region_col + n] for row in rows]
-        region_complete = all(cell != 0 for row in region for cell in row)
+            Returns:
+            - bool: True if the region is complete, False otherwise.
+            """
+            return (len(values) == N
+                    and len(set(values)) == N
+                    and all(value != SudokuBoard.empty for value in values))
 
-        regions_completed = int(row_complete) + int(col_complete) + int(region_complete)
+        # Collect values in the row, column, and block
+        row_values = [board.get((row, i)) for i in range(N)]
+        col_values = [board.get((i, col)) for i in range(N)]
+        block_values = [
+            board.get((block_start_row + (i // n), block_start_col + (i % n)))
+            for i in range(N)
+        ]
 
-        if regions_completed == 0:
-            return 0
-        elif regions_completed == 1:
-            return 1
-        elif regions_completed == 2:
-            return 3
-        elif regions_completed == 3:
-            return 7
+        # Count completed regions
+        completed_regions = sum([
+            is_region_complete(row_values),
+            is_region_complete(col_values),
+            is_region_complete(block_values)
+        ])
+
+        # Return score based on completed regions
+        if completed_regions == 1:
+            return 1  # 1 point for completing 1 region
+        elif completed_regions == 2:
+            return 3  # 3 points for completing 2 regions
+        elif completed_regions == 3:
+            return 7  # 7 points for completing all 3 regions
         else:
-            return 0
+            return 0  # No regions completed
+
+
 
 
     def apply_move(self, node, move):
@@ -178,29 +164,27 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         """
         # Create a deep copy of the node to generate a new state
         new_node = copy.deepcopy(node)
-        if type(move) != str:
-            # Update the new node with the applied move
-            new_node.last_move = move
-            new_node.board.put(move.square, move.value)
-            new_node.moves.append(move)
 
-            # Calculate the score resulting from the move and update the player's score
-            score = self.calculate_move_score(new_node, move)
-            new_node.scores[new_node.current_player - 1] += score
+        # Update the new node with the applied move
+        new_node.last_move = move
+        new_node.board.put(move.square, move.value)
+        new_node.moves.append(move)
 
-            # Update occupied squares and switch the current player
-            if new_node.current_player == 1:
-                new_node.occupied_squares1.append(move.square)
-                new_node.current_player = 2
-                return new_node
-            else:
-                new_node.occupied_squares2.append(move.square)
-                new_node.current_player = 1
-                return new_node
+        # Calculate the score resulting from the move and update the player's score
+        score = self.calculate_move_score(new_node, move)
+        new_node.scores[new_node.current_player - 1] += score
 
+        # Update occupied squares and switch the current player
+        if new_node.current_player == 1:
+            new_node.occupied_squares1.append(move.square)
+            new_node.current_player = 2
         else:
-            node.current_player = 3 - node.current_player
-            return new_node
+            new_node.occupied_squares2.append(move.square)
+            new_node.current_player = 1
+
+        # Return the new node representing the updated game state
+        return new_node
+
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
         """
@@ -236,9 +220,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         moves = self.get_all_moves(node)
         prioritized_moves = self.killer_moves[depth] + [move for move in moves if move not in self.killer_moves[depth]]
 
-        if len(prioritized_moves) == 0:
-            prioritized_moves = ['blocked']
-
         if is_maximizing_player:
             # Maximizing player's turn
             max_eval = float('-inf')
@@ -257,7 +238,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 # Perform alpha-beta pruning if applicable
                 if beta <= alpha:
                     # Add the move to the killer moves list if not already present
-                    if move not in self.killer_moves[depth] and type(move)!=str:
+                    if move not in self.killer_moves[depth]:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
                             self.killer_moves[depth].pop(0)
                         self.killer_moves[depth].append(move)
@@ -285,7 +266,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 # Perform alpha-beta pruning if applicable
                 if beta <= alpha:
                     # Add the move to the killer moves list if not already present
-                    if move not in self.killer_moves[depth] and type(move)!=str:
+                    if move not in self.killer_moves[depth]:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
                             self.killer_moves[depth].pop(0)
                         self.killer_moves[depth].append(move)
@@ -310,10 +291,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
-        N = root_node.board.N
-        if N*N - len(root_node.occupied_squares1 + root_node.occupied_squares2) <= N:
-            root_node.game_phase = 'late'
-            print('late', '))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))')
+
         # Reset the nodes explored counter for this computation
         self.nodes_explored = 0
 
@@ -325,7 +303,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Check for heuristic-based moves and propose if available
         heuristic_move = get_heuristic_moves(root_node)
-        if heuristic_move and len(root_node.other_player_squares())!=0:
+        if heuristic_move:
             self.propose_move(heuristic_move)
             return
 
@@ -353,11 +331,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
                 # Increment the counter for nodes explored
                 counter_nodes += 1
-                #print(counter_nodes)
+                print(counter_nodes)
 
             # Output the progress for the current depth
-            #print(f'Depth {depth + 1} search complete.')
-            #print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
+            print(f'Depth {depth + 1} search complete.')
+            print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
 
             # Reset nodes explored counter for tracking nodes at the next depth level
             self.nodes_explored = 0
