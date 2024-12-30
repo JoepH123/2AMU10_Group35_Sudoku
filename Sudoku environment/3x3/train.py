@@ -13,6 +13,7 @@ from test import plot_board
 from tqdm import tqdm
 from opponents import select_action_score_or_mobility, random_opponent_move, select_action_score
 
+
 def check_device():
     if torch.cuda.is_available():
         print(f"GPU is available: {torch.cuda.get_device_name(0)}")
@@ -62,21 +63,21 @@ def save_model_as_pkl(agent, epsilon, filename="dqn_model.pkl"):
     print(f"Model and parameters saved to {filepath}")
 
 
-def make_state(board):
+def make_state(board, player=1):
     # board shape: (4,4) with values in {-1,0,1}
     # We maken 3 kanalen:
     # kanaal 0: speler 1 posities
     # kanaal 1: speler -1 posities
     # kanaal 2: lege cellen
-    p1_channel = (board == 1).astype(np.float32)
-    p2_channel = (board == -1).astype(np.float32)
+    p1_channel = (board == player).astype(np.float32)
+    p2_channel = (board == -player).astype(np.float32)
     empty_channel = (board == 0).astype(np.float32)
     return np.stack([p1_channel, p2_channel, empty_channel], axis=0)  # (3,4,4)
 
 def main():
     check_device()
     num_episodes = 50_000
-    agent = DQNAgent(lr=1e-3, gamma=0.99, batch_size=64, replay_size=1000, update_target_every=500)
+    agent = DQNAgent(lr=5e-4, gamma=0.99, batch_size=128, replay_size=1000, update_target_every=1000)
     normalization_factor = 7.0
 
     # Laad het bestaande model (optioneel)

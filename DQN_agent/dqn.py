@@ -6,37 +6,65 @@ import random
 import numpy as np
 from collections import deque
 
+# def generate_transformed_transitions(state, next_state, action):
+#     transformations = []
+#     (row, col) = action
+
+#     for k in range(4):
+#         # Pas rotatie toe op elk kanaal afzonderlijk
+#         rotated_state = np.array([np.rot90(channel, k) for channel in state])
+#         rotated_next_state = np.array([np.rot90(channel, k) for channel in next_state])
+
+#         if rotated_state.shape != state.shape or rotated_next_state.shape != next_state.shape:
+#             raise ValueError(f"Shape mismatch after rotation {k}: {rotated_state.shape}")
+
+#         if k == 0:
+#             r_a, c_a = row, col
+#         elif k == 1:
+#             r_a, c_a = col, 8 - row
+#         elif k == 2:
+#             r_a, c_a = 8 - row, 8 - col
+#         elif k == 3:
+#             r_a, c_a = 8 - col, row
+
+#         transformations.append((rotated_state, rotated_next_state, (r_a, c_a)))
+
+#         # Pas flip toe op elk kanaal afzonderlijk
+#         flipped_state = np.array([np.flip(channel, axis=1) for channel in rotated_state])
+#         flipped_next_state = np.array([np.flip(channel, axis=1) for channel in rotated_next_state])
+
+#         if flipped_state.shape != state.shape or flipped_next_state.shape != next_state.shape:
+#             raise ValueError(f"Shape mismatch after flip: {flipped_state.shape}")
+
+#         transformations.append((flipped_state, flipped_next_state, (r_a, 8 - c_a)))
+
+#     return transformations
+
+
 def generate_transformed_transitions(state, next_state, action):
     transformations = []
     (row, col) = action
 
-    for k in range(4):
-        # Pas rotatie toe op elk kanaal afzonderlijk
-        rotated_state = np.array([np.rot90(channel, k) for channel in state])
-        rotated_next_state = np.array([np.rot90(channel, k) for channel in next_state])
+    # Identiteit
+    transformations.append((state, next_state, (row, col)))
 
-        if rotated_state.shape != state.shape or rotated_next_state.shape != next_state.shape:
-            raise ValueError(f"Shape mismatch after rotation {k}: {rotated_state.shape}")
+    # 180° Rotatie
+    rotated_state_180 = np.array([np.rot90(channel, 2) for channel in state])
+    rotated_next_state_180 = np.array([np.rot90(channel, 2) for channel in next_state])
+    r_a_180, c_a_180 = 8 - row, 8 - col
+    transformations.append((rotated_state_180, rotated_next_state_180, (r_a_180, c_a_180)))
 
-        if k == 0:
-            r_a, c_a = row, col
-        elif k == 1:
-            r_a, c_a = col, 8 - row
-        elif k == 2:
-            r_a, c_a = 8 - row, 8 - col
-        elif k == 3:
-            r_a, c_a = 8 - col, row
+    # Horizontale spiegeling
+    flipped_state_h = np.array([np.flip(channel, axis=1) for channel in state])
+    flipped_next_state_h = np.array([np.flip(channel, axis=1) for channel in next_state])
+    r_a_h, c_a_h = row, 8 - col
+    transformations.append((flipped_state_h, flipped_next_state_h, (r_a_h, c_a_h)))
 
-        transformations.append((rotated_state, rotated_next_state, (r_a, c_a)))
-
-        # Pas flip toe op elk kanaal afzonderlijk
-        flipped_state = np.array([np.flip(channel, axis=1) for channel in rotated_state])
-        flipped_next_state = np.array([np.flip(channel, axis=1) for channel in rotated_next_state])
-
-        if flipped_state.shape != state.shape or flipped_next_state.shape != next_state.shape:
-            raise ValueError(f"Shape mismatch after flip: {flipped_state.shape}")
-
-        transformations.append((flipped_state, flipped_next_state, (r_a, 8 - c_a)))
+    # Verticale spiegeling
+    flipped_state_v = np.array([np.flip(channel, axis=0) for channel in state])
+    flipped_next_state_v = np.array([np.flip(channel, axis=0) for channel in next_state])
+    r_a_v, c_a_v = 8 - row, col
+    transformations.append((flipped_state_v, flipped_next_state_v, (r_a_v, c_a_v)))
 
     return transformations
 
@@ -88,7 +116,7 @@ class ReplayMemory:
         return len(self.memory)
 
 class DQNAgent:
-    def __init__(self, lr=5e-4, gamma=0.99, batch_size=128, replay_size=100000, update_target_every=500, tau=0.005):
+    def __init__(self, lr=1e-4, gamma=0.99, batch_size=64, replay_size=100000, update_target_every=250, tau=0.005):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
         self.batch_size = batch_size
@@ -140,8 +168,41 @@ class DQNAgent:
                 self.tau * policy_param.data + (1.0 - self.tau) * target_param.data
             )
 
+    # def soft_update(self):
+    #     # Parameters voor de t-soft update
+    #     nu = 3.0  # Degrees of freedom voor de Student's t-distributie
+    #     epsilon = 1e-6  # Kleine constante om numerieke stabiliteit te garanderen
+
+    #     # Itereer door alle parameters van de target- en policy-netwerken
+    #     for i, (target_param, policy_param) in enumerate(zip(self.target_net.parameters(), self.policy_net.parameters())):
+    #         # Bereken het verschil tussen policy- en target-parameters
+    #         delta = policy_param.data - target_param.data
+
+    #         # Update de sigma_squared (bewegend gemiddelde van kwadratische verschillen)
+    #         if not hasattr(self, 'sigma_squared'):
+    #             self.sigma_squared = [torch.zeros_like(param) for param in self.policy_net.parameters()]
+    #         self.sigma_squared[i] = (1 - self.tau) * self.sigma_squared[i] + self.tau * delta**2
+
+    #         # Bereken de adaptieve gewichten W
+    #         if not hasattr(self, 'W'):
+    #             self.W = [torch.zeros_like(param) for param in self.policy_net.parameters()]
+    #         self.W[i] = (nu + 1) / (nu + (delta**2 / (self.sigma_squared[i] + epsilon)))
+
+    #         # Pas de t-soft update regel toe
+    #         target_param.data.copy_(
+    #             target_param.data + self.tau * self.W[i] * delta
+    #         )
+
 
     def update(self):
+        # if self.steps_done % 4 != 0:
+        #     self.steps_done += 1
+
+        #     if self.steps_done % self.update_target_every == 0:
+        #         self.target_net.load_state_dict(self.policy_net.state_dict())
+
+        #     return
+
         # Zorg dat er voldoende samples in het replay-buffer zitten
         if len(self.memory) < self.batch_size:
             return
@@ -180,6 +241,7 @@ class DQNAgent:
 
         # MSE-loss
         loss = F.mse_loss(q_values, target)
+        #loss = F.smooth_l1_loss(q_values, target)
 
         # Optimaliseer de policy_net
         self.optimizer.zero_grad()
@@ -189,5 +251,14 @@ class DQNAgent:
         # Houd aantal updates bij
         self.steps_done += 1
 
-        # Voer een zachte update uit (soft target update)
-        self.soft_update()
+        #Voer een zachte update uit (soft target update)
+        #self.soft_update()
+
+        #hard update
+        if self.steps_done % self.update_target_every == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+
+        # if self.steps_done % 10_000 == 0:
+        #     self.optimizer = optim.Adam(self.policy_net.parameters(), lr=1e-4)
+
+
