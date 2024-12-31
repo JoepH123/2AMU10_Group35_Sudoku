@@ -31,11 +31,11 @@ class NodeGameState(GameState):
         self.solved_board_dict = solved_board_dict
         self.game_phase = 'mid'
 
-    def hash_key(self):
+    def hash_key(self, depth):
         """
         Generate a unique hash key for this node.
         """
-        return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
+        return (tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player, depth)
 
     def other_player_squares(self):
         """
@@ -79,8 +79,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     def __init__(self):
         """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
-        transposition_table = self.load()
-        self.transposition_table = {} if transposition_table is None else transposition_table
+        self.transposition_table = {}
         self.killer_moves = {i: [] for i in range(10)}  # Dictionary to store killer moves for each depth
         self.nodes_explored = 0  # Add this line to initialize the counter
 
@@ -200,7 +199,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 return new_node
 
         else:
-            node.current_player = 3 - node.current_player
+            new_node.current_player = 3 - new_node.current_player
             return new_node
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
@@ -221,16 +220,15 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         self.nodes_explored += 1
 
         # Generate a unique key for the node to check in the transposition table
-        node_key = (node.hash_key(), depth, is_maximizing_player)
-
-        # Check if the current node evaluation is already cached in the transposition table
-        if node_key in self.transposition_table:
-            return self.transposition_table[node_key]
-
+        node_key = node.hash_key(depth)
         # Base case: If maximum depth is reached or the node is a terminal state, evaluate the node
         if depth == 0 or self.is_terminal(node):
-            score = self.evaluate(node)
-            self.transposition_table[node_key] = score  # Cache the result
+            if node_key in self.transposition_table:
+                print('check in +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+                score = self.transposition_table[node_key]
+            else:
+                score = self.evaluate(node)
+                self.transposition_table[node_key] = score  # Cache the result
             return score
 
         # Retrieve all moves and prioritize killer moves
@@ -307,8 +305,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
             None: Proposes the best move directly using self.propose_move.
         """
-        self.player_number = game_state.current_player
-        print(self.transposition_table)
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
@@ -326,13 +322,13 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Check for heuristic-based moves and propose if available
         heuristic_move = get_heuristic_moves(root_node)
-        if heuristic_move and len(root_node.other_player_squares())!=0:
+        if heuristic_move and len(root_node.other_player_squares())!=0 and root_node.game_phase != 'late':
             self.propose_move(heuristic_move)
             return
 
         # Initialize the best value to a very low number to track the maximum score
         best_value = float('-inf')
-
+        counter_nodes = 0
         # Perform iterative deepening up to a specified maximum depth
         for depth in range(10):  # Depth is set to 10 by default
             counter_nodes = 0  # Initialize a counter for nodes explored at the current depth
@@ -355,12 +351,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 # Increment the counter for nodes explored
                 counter_nodes += 1
                 #print(self.transposition_table)
-                self.save(self.transposition_table)
-                #print(counter_nodes)
-
+                print(depth+1, counter_nodes)
             # Output the progress for the current depth
-            #print(f'Depth {depth + 1} search complete.')
-            #print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
+            # print(f'Depth {depth + 1} search complete.')
+            # print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
 
             # Reset nodes explored counter for tracking nodes at the next depth level
             self.nodes_explored = 0
