@@ -10,6 +10,7 @@ from .evaluation_functions import evaluate_node, calculate_mobility, calculate_s
 from .sudoku_solver import SudokuSolver
 from .hard_coded_moves import get_heuristic_moves
 
+
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
         """
@@ -224,7 +225,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         # Base case: If maximum depth is reached or the node is a terminal state, evaluate the node
         if depth == 0 or self.is_terminal(node):
             if node_key in self.transposition_table:
-                print('check in +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
                 score = self.transposition_table[node_key]
             else:
                 score = self.evaluate(node)
@@ -328,7 +328,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Initialize the best value to a very low number to track the maximum score
         best_value = float('-inf')
-        counter_nodes = 0
+
         # Perform iterative deepening up to a specified maximum depth
         for depth in range(10):  # Depth is set to 10 by default
             counter_nodes = 0  # Initialize a counter for nodes explored at the current depth

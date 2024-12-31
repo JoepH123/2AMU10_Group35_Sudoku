@@ -182,24 +182,24 @@ def evaluate_node(node) -> float:
     score_one_empty = score_one_empty_in_region(node)
 
     if node.game_phase == 'late':
-        eval_func = score_diff_game + 0.5*score_one_empty
-        print(
-            f"score_diff_game: {score_diff_game}, "
-            f"score_one_empty: {score_one_empty}, "
-            f"eval_func: {eval_func}, {node.last_move}, {node.scores}\n"
-        )
+        eval_func = score_diff_game + score_one_empty
+        # print(
+        #     f"score_diff_game: {score_diff_game}, "
+        #     f"score_one_empty: {score_one_empty}, "
+        #     f"eval_func: {eval_func}, {node.last_move}, {node.scores}\n"
+        # )
     else:
         punish_corner_score = punish_corner(node)
         score_center = calc_score_center_moves(node)
         unique_control = unique_controlled_squares(node)
         eval_func = score_diff_game + score_one_empty + punish_corner_score + score_center + unique_control
-        print(
-            f"score_diff_game: {score_diff_game}, "
-            f"score_one_empty: {score_one_empty}, "
-            f"score_center: {score_center}, "
-            f"punish_corner_score: {punish_corner_score}, "
-            f"unique_control: {unique_control}, "
-            f"eval_func: {eval_func}\n"
-        )
+        # print(
+        #     f"score_diff_game: {score_diff_game}, "
+        #     f"score_one_empty: {score_one_empty}, "
+        #     f"score_center: {score_center}, "
+        #     f"punish_corner_score: {punish_corner_score}, "
+        #     f"unique_control: {unique_control}, "
+        #     f"eval_func: {eval_func}\n"
+        # )
     return eval_func
 
