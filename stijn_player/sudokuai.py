@@ -10,6 +10,7 @@ from .evaluation_functions import evaluate_node, calculate_mobility, calculate_s
 from .sudoku_solver import SudokuSolver
 from .hard_coded_moves import get_heuristic_moves
 
+
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
         """
@@ -31,11 +32,11 @@ class NodeGameState(GameState):
         self.solved_board_dict = solved_board_dict
         self.game_phase = 'mid'
 
-    def hash_key(self):
+    def hash_key(self, depth):
         """
         Generate a unique hash key for this node.
         """
-        return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
+        return (tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player, depth)
 
     def other_player_squares(self):
         """
@@ -199,7 +200,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 return new_node
 
         else:
-            node.current_player = 3 - node.current_player
+            new_node.current_player = 3 - new_node.current_player
             return new_node
 
     def minimax(self, node, depth, is_maximizing_player, alpha, beta):
@@ -220,16 +221,14 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         self.nodes_explored += 1
 
         # Generate a unique key for the node to check in the transposition table
-        node_key = (node.hash_key(), depth, is_maximizing_player)
-
-        # Check if the current node evaluation is already cached in the transposition table
-        if node_key in self.transposition_table:
-            return self.transposition_table[node_key]
-
+        node_key = node.hash_key(depth)
         # Base case: If maximum depth is reached or the node is a terminal state, evaluate the node
         if depth == 0 or self.is_terminal(node):
-            score = self.evaluate(node)
-            self.transposition_table[node_key] = score  # Cache the result
+            if node_key in self.transposition_table:
+                score = self.transposition_table[node_key]
+            else:
+                score = self.evaluate(node)
+                self.transposition_table[node_key] = score  # Cache the result
             return score
 
         # Retrieve all moves and prioritize killer moves
@@ -255,7 +254,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 alpha = max(alpha, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha:
+                if beta <= alpha and node.game_phase != 'late':
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
@@ -283,7 +282,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 beta = min(beta, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha:
+                if beta <= alpha and node.game_phase != 'late':
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
@@ -306,14 +305,12 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         Returns:
             None: Proposes the best move directly using self.propose_move.
         """
-
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
         N = root_node.board.N
         if N*N - len(root_node.occupied_squares1 + root_node.occupied_squares2) <= N:
             root_node.game_phase = 'late'
-            print('late', '))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))')
         # Reset the nodes explored counter for this computation
         self.nodes_explored = 0
 
@@ -325,7 +322,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Check for heuristic-based moves and propose if available
         heuristic_move = get_heuristic_moves(root_node)
-        if heuristic_move and len(root_node.other_player_squares())!=0:
+        if heuristic_move and len(root_node.other_player_squares())!=0 and root_node.game_phase != 'late':
             self.propose_move(heuristic_move)
             return
 
@@ -353,11 +350,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
                 # Increment the counter for nodes explored
                 counter_nodes += 1
-                #print(counter_nodes)
-
+                #print(self.transposition_table)
+                #print(depth+1, counter_nodes)
             # Output the progress for the current depth
-            #print(f'Depth {depth + 1} search complete.')
-            #print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
+            # print(f'Depth {depth + 1} search complete.')
+            # print(f'Nodes explored at depth {depth + 1}: {self.nodes_explored}')
 
             # Reset nodes explored counter for tracking nodes at the next depth level
             self.nodes_explored = 0

@@ -150,12 +150,16 @@ def punish_corner(node):
     Returns:
         int: Penalty score (-10 if the corner is occupied, 0 otherwise).
     """
+    m = node.board.m
+    n = node.board.n
     if node.my_player == 1:
         # Get the occupied squares for player 1
         player_occupied = node.occupied_squares1
         score = 0
-        if (0, 0) in player_occupied:  # Check top-left corner
-            score = -10
+        for row in range(m-1):
+            for col in range(n-1):
+                if (row, col) in player_occupied:  # Check top-left corner
+                    score = -10
         return score
 
     if node.my_player == 2:
@@ -163,8 +167,10 @@ def punish_corner(node):
         N = node.board.N  # Board size
         player_occupied = node.occupied_squares2
         score = 0
-        if (N - 1, 0) in player_occupied:  # Check bottom-left corner
-            score = -10
+        for row in range(N-m+1, N):
+            for col in range(N-n+1, N):
+                if (row, col) in player_occupied:  # Check bottom-left corner
+                    score = -10
         return score
 
 
@@ -186,8 +192,7 @@ def evaluate_node(node) -> float:
         # print(
         #     f"score_diff_game: {score_diff_game}, "
         #     f"score_one_empty: {score_one_empty}, "
-        #     f"punish_corner_score: {punish_corner_score}, "
-        #     f"eval_func: {eval_func}\n"
+        #     f"eval_func: {eval_func}, {node.last_move}, {node.scores}\n"
         # )
     else:
         punish_corner_score = punish_corner(node)

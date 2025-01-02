@@ -16,7 +16,7 @@ def get_heuristic_moves(node):
     my_player_occupied = (node.occupied_squares1 if node.my_player == 1 else node.occupied_squares2)
 
     # If the current player has fewer than 2 occupied squares, compute start moves.
-    if len(my_player_occupied) < m:
+    if len(my_player_occupied) < m+1:
         return compute_start_moves(node)
 
     # Attempt to defend the corner if applicable.
@@ -52,7 +52,7 @@ def defend_corner(node):
         #    rows in [0..m-1], cols in [0..n-1].
         #    If ANY of these squares is NOT empty, no reason to defend.
         # ----------------------------------------
-        for row in range(m):
+        for row in range(m-1):
             for col in range(n-1):
                 if node.board.get((row, col)) != 0:
                     return False
@@ -82,7 +82,7 @@ def defend_corner(node):
         #    rows in [N-m..N-1], cols in [0..n-1].
         #    If ANY of these squares is NOT empty, no reason to defend.
         # ----------------------------------------
-        for row in range(N - m, N):
+        for row in range(N - m + 1, N):
             for col in range(n-1):
                 if node.board.get((row, col)) != 0:
                     return False
@@ -138,34 +138,39 @@ def compute_start_moves(node):
 
     # How many opening moves has the player already used?
     # This is simply the count of how many squares are occupied by that player.
-    moves_used = len(player_occupied)
+    #moves_used = len(player_occupied)
 
     # If we've already used up m moves, return False (no special opening move).
-    if moves_used >= m:
-        return False
+    # if moves_used >= m:
+    #     return False
 
     if node.my_player == 1:
-        # Player 1: place stones from top to bottom
-        # E.g., (0,1), (1,1), (2,1), ... up to (m-1,1)
-        row = moves_used
-        col = n-1
-        coordinates = (row, col)
-        return Move(coordinates, node.solved_board_dict[coordinates])
+        if any(node.board.get((row, n-1)) == 0 for row in range(m)):
+            for row in range(m):
+                # Player 1: place stones from top to bottom
+                # E.g., (0,1), (1,1), (2,1), ... up to (m-1,1)
+                col = n-1
+                coordinates = (row, col)
+                if coordinates not in player_occupied:
+                    return Move(coordinates, node.solved_board_dict[coordinates])
+        else:
+            return False
 
     elif node.my_player == 2:
-        # Player 2: place stones from bottom to top
-        # E.g., (N-1,1), (N-2,1), ... up to (N-m,1)
-        row = N - 1 - moves_used
-        col = n-1
-        coordinates = (row, col)
-        return Move(coordinates, node.solved_board_dict[coordinates])
+        if any(node.board.get((row, n-1)) == 0 for row in range(N - m, N)):
+            for row in range(N - 1, N - m - 1, -1):
+                # Player 2: place stones from top to bottom
+                col = n-1
+                coordinates = (row, col)
+                if coordinates not in player_occupied:
+                    return Move(coordinates, node.solved_board_dict[coordinates])
+        else:
+            return False
+
 
     # If for some reason the player is neither 1 nor 2, return False.
     return False
 
-
-
-from collections import deque
 
 def bfs_paths(node, start_points, end_condition, corners_to_skip):
     """
