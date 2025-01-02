@@ -18,6 +18,22 @@ def check_device():
     else:
         print("GPU is NOT available. Using CPU.")
 
+def load_model(agent, filename="dqn_model.pkl"):
+    """Laad een opgeslagen model en initialiseer de agent met de gewichten."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    models_dir = os.path.join(script_dir, "models_6x6")
+    file_path = os.path.join(models_dir, filename)
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Model file '{file_path}' not found.")
+
+    with open(file_path, "rb") as f:
+        data = pickle.load(f)
+
+    agent.policy_net.load_state_dict(data["policy_state_dict"])
+    agent.target_net.load_state_dict(data["policy_state_dict"])  # Synchroniseer target_net
+    print(f"Model loaded from {file_path}.")
+
 def save_model_as_pkl(agent, epsilon, filename="dqn_6x6_model.pkl"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     models_dir = os.path.join(script_dir, "models_6x6")
@@ -59,18 +75,18 @@ def main():
     agent = DQNAgent(
         lr=1e-3,           # Leer wat sneller
         gamma=0.99,
-        batch_size=64,
-        replay_size=100000,
-        update_target_every=250,
+        batch_size=128,
+        replay_size=5000,
+        update_target_every=500,
         tau=0.005
     )
 
     # Epsilon: start hoger (0.8) -> mid (0.3) -> end (0.05)
-    eps_start = 0.8
+    eps_start = 0.5
     eps_mid = 0.3
     eps_end = 0.05
-    eps_phase1 = 40_000
-    eps_phase2 = 40_000
+    eps_phase1 = 20_000
+    eps_phase2 = 30_000
     total_decay = eps_phase1 + eps_phase2
     step_phase1 = (eps_start - eps_mid) / eps_phase1
     step_phase2 = (eps_mid - eps_end) / eps_phase2
@@ -85,7 +101,16 @@ def main():
 
     # Extra
     normalization_factor = 7.0
-    mobility_coeff = 0.05
+    mobility_coeff = 0 #0.05
+
+    # Probeer een bestaand model te laden
+    model_filename = "dqn_6x6_random_2_model.pkl"  # Pas aan naar jouw modelbestand
+    try:
+        load_model(agent, filename=model_filename)
+        print("Starting training with preloaded model.")
+    except FileNotFoundError:
+        print("No pretrained model found. Starting training from scratch.")
+
 
     env = DQLGameState6x6()
 

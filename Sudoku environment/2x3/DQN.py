@@ -117,18 +117,23 @@ class DQNAgent:
         return action
 
     def store_transition(self, state, action, reward, next_state, done):
-        # Data augmentatie
-        transitions = generate_transformed_transitions(state, next_state, action)
-        for s_aug, s_next_aug, a_aug in transitions:
-            a_idx = a_aug[0]*6 + a_aug[1]
-            self.memory.push(s_aug, a_idx, reward, s_next_aug, done)
 
-        # Extra opslaan als reward groot is
-        if abs(reward) > 0.1:
-            for _ in range(3):
-                for s_aug, s_next_aug, a_aug in transitions:
-                    a_idx = a_aug[0]*6 + a_aug[1]
-                    self.memory.push(s_aug, a_idx, reward, s_next_aug, done)
+        action_idx = action[0]*6 + action[1]
+        self.memory.push(state, action_idx, reward, next_state, done)
+
+        # # Data augmentatie
+        # transitions = generate_transformed_transitions(state, next_state, action)
+        # for s_aug, s_next_aug, a_aug in transitions:
+        #     a_idx = a_aug[0]*6 + a_aug[1]
+        #     self.memory.push(s_aug, a_idx, reward, s_next_aug, done)
+
+        # # # Extra opslaan als reward groot is
+        # # if abs(reward) > 0.1:
+        # #     for _ in range(3):
+        # #         for s_aug, s_next_aug, a_aug in transitions:
+        # #             a_idx = a_aug[0]*6 + a_aug[1]
+        # #             self.memory.push(s_aug, a_idx, reward, s_next_aug, done)
+
 
     def soft_update(self):
         # tau * policy + (1-tau)*target

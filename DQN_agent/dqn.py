@@ -94,6 +94,34 @@ class CNNQNetwork(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
+    
+
+class CNNQNetwork_6x6(nn.Module):
+    def __init__(self, input_shape=(6,6), num_actions=36):
+        super(CNNQNetwork_6x6, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
+        )
+        # Flatten => 64 * 6 * 6 = 2304
+        self.fc = nn.Sequential(
+            nn.Linear(2304, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_actions)
+        )
+
+    def forward(self, x):
+        # x shape: (B, 3, 6, 6)
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.fc(x)
+        return x
 
 class ReplayMemory:
     def __init__(self, capacity):
