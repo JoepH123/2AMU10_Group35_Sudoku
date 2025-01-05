@@ -76,17 +76,17 @@ def main():
         lr=1e-3,           # Leer wat sneller
         gamma=0.99,
         batch_size=128,
-        replay_size=5000,
+        replay_size=50000,
         update_target_every=500,
         tau=0.005
     )
 
     # Epsilon: start hoger (0.8) -> mid (0.3) -> end (0.05)
-    eps_start = 0.5
-    eps_mid = 0.3
+    eps_start = 0.6
+    eps_mid = 0.1
     eps_end = 0.05
-    eps_phase1 = 20_000
-    eps_phase2 = 30_000
+    eps_phase1 = 40_000
+    eps_phase2 = 40_000
     total_decay = eps_phase1 + eps_phase2
     step_phase1 = (eps_start - eps_mid) / eps_phase1
     step_phase2 = (eps_mid - eps_end) / eps_phase2
@@ -104,7 +104,7 @@ def main():
     mobility_coeff = 0 #0.05
 
     # Probeer een bestaand model te laden
-    model_filename = "dqn_6x6_random_2_model.pkl"  # Pas aan naar jouw modelbestand
+    model_filename = "dqn_6x6_5_model.pkl"  # Pas aan naar jouw modelbestand
     try:
         load_model(agent, filename=model_filename)
         print("Starting training with preloaded model.")

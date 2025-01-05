@@ -83,13 +83,13 @@ def main():
     num_episodes = 50_000
 
     # Initialiseer agent (pas replay_size, etc. aan naar wens)
-    agent = DQNAgent(lr=5e-4, gamma=0.99, batch_size=64, replay_size=100000, update_target_every=250)
+    agent = DQNAgent(lr=1e-3, gamma=0.99, batch_size=64, replay_size=50_000, update_target_every=500)
 
     # Normalisatiefactor voor beloningen, zoals in jouw code
     normalization_factor = 7.0
 
     # Probeer een bestaand model te laden
-    model_filename = "9x9_greedy_3_best_dqn_model.pkl"  # Pas aan naar jouw modelbestand
+    model_filename = "team35_9x9_dqn_model.pkl"  # Pas aan naar jouw modelbestand
     try:
         load_model(agent, filename=model_filename)
         print("Starting training with preloaded model.")
@@ -100,9 +100,9 @@ def main():
     opponent_agent = copy.deepcopy(agent)
 
     # Epsilon-decay: 2 fasen
-    epsilon_start = 0.5
-    epsilon_mid = 0.1
-    epsilon_end = 0.01
+    epsilon_start = 1
+    epsilon_mid = 0.5
+    epsilon_end = 0
     epsilon_decay_steps_phase1 = 25_000
     epsilon_decay_steps_phase2 = 25_000
     total_decay_steps = epsilon_decay_steps_phase1 + epsilon_decay_steps_phase2
@@ -144,10 +144,6 @@ def main():
 
         opponent_policy = select_action_score_or_mobility
 
-        # if random.random() < 0.8:
-        #     opponent_policy = select_action_score_or_mobility
-        # else:
-        #     opponent_policy = selfplay
 
         # Reset board
         state_obj.reset()
@@ -159,7 +155,7 @@ def main():
             valid_moves = state_obj.get_all_moves()
             reward_opponent, done_opponent, info = state_obj.step(opponent_action)
 
-        #plot_board(state_obj.board, title= 'agent is: '+str(agent_player) + f'opponent {opponent_policy}', pause_time=5)
+        #plot_board(state_obj.board, title= 'agent is: '+str(agent_player), pause_time=3)
  
         done = False
         episode_reward = 0.0
@@ -180,13 +176,9 @@ def main():
                 action = agent.select_action(current_state, valid_moves, epsilon)
                 reward_agent, done_agent, info = state_obj.step(action)
                 #plot_board(state_obj.board)
-                # Beloning komt al vanuit 'current_player' perspectief (volgens env),
-                # dus als agent_player = -1 is, krijg je daar direct de juiste beloning.
-                # Normaliseren
                 reward_agent /= normalization_factor
 
                 # Score in info["score"] = (score_p1, score_p2)
-                # Bepaal final_agent_score op basis van agent_player
                 if agent_player == 1:
                     final_agent_score = info["score"][0]
                     final_opponent_score = info["score"][1]
@@ -266,7 +258,7 @@ def main():
                     final_agent_score = info["score"][1]
                     final_opponent_score = info["score"][0]
 
-                combined_reward = reward_agent - 1.5*reward_opponent
+                combined_reward = reward_agent - reward_opponent
 
                 if done_opponent:
                     episode_reward += combined_reward
@@ -279,19 +271,23 @@ def main():
                 # --- Agent moves after the opponent (mobility reward) ---
                 valid_moves_agent = state_obj.get_all_moves(player=agent_player)
                 if valid_moves_agent:
-                    #print(valid_moves_agent)
-                    agent_valid_moves_after = valid_moves_agent #len(valid_moves_agent)
+
+                    agent_valid_moves_after = valid_moves_agent 
                     opponent_valid_moves_after = state_obj.get_all_moves(player=opponent_player) #len(state_obj.get_all_moves(player=opponent_player))
 
-                    agent_control_before = len(set(agent_valid_moves_before) - set(opponent_valid_moves_before)) # alleen door agent gecontroleerd
-                    agent_control_after = len(set(agent_valid_moves_after) - set(opponent_valid_moves_after)) # alleen door agent gecontroleerd
+                    # # Agent's unique control
+                    # agent_control_before = len(set(agent_valid_moves_before) - set(opponent_valid_moves_before))
+                    # agent_control_after = len(set(agent_valid_moves_after) - set(opponent_valid_moves_after))
 
-                    opponent_control_before = len(set(opponent_valid_moves_before) - set(agent_valid_moves_before)) # alleen door opponent gecontroleerd
-                    opponent_control_after = len(set(opponent_valid_moves_after) - set(agent_valid_moves_after)) # alleen door oppponent gecontroleerd
+                    # # Opponent's unique control 
+                    # opponent_control_before = len(set(opponent_valid_moves_before) - set(agent_valid_moves_before))
+                    # opponent_control_after = len(set(opponent_valid_moves_after) - set(agent_valid_moves_after))
 
-                    mobility_reward = (0.1*(agent_control_after-agent_control_before) - 0.15*(opponent_control_after-opponent_control_before)) / normalization_factor
-
-                    #mobility_reward = (0.05*(agent_valid_moves_after - agent_valid_moves_before))- (0.05*(opponent_valid_moves_after - opponent_valid_moves_before)) / normalization_factor
+                    # Calculate mobility reward: agent's gain minus opponent's gain
+                    mobility_reward = 0.01*(len(agent_valid_moves_after) - len(opponent_valid_moves_after)) #- 0.002*(max((len(opponent_valid_moves_before) - len(opponent_valid_moves_after)),0))
+                                    
+                    # Normalize the mobility reward
+                    mobility_reward /= normalization_factor
 
                     combined_reward += mobility_reward
                     episode_reward += combined_reward

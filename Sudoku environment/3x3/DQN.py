@@ -154,18 +154,21 @@ class DQNAgent:
     def store_transition(self, state, action, reward, next_state, done):
         # action_idx = action[0] * 9 + action[1]
         # self.memory.push(state, action_idx, reward, next_state, done)
+        
+        action_idx = action[0] * 9 + action[1]
+        self.memory.push(state, action_idx, reward, next_state, done)
 
-        #Als je augmentaties wilt gebruiken, activeer dit blok:
-        augmented_transitions = generate_transformed_transitions(state, next_state, action)
-        for (t_state, t_next_state, t_action) in augmented_transitions:
-            t_action_idx = t_action[0] * 9 + t_action[1]
-            self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
+        # #Als je augmentaties wilt gebruiken, activeer dit blok:
+        # augmented_transitions = generate_transformed_transitions(state, next_state, action)
+        # for (t_state, t_next_state, t_action) in augmented_transitions:
+        #     t_action_idx = t_action[0] * 9 + t_action[1]
+        #     self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
 
-        if reward > 0.1 or reward < -0.1:
-            for i in range(3):
-                for (t_state, t_next_state, t_action) in augmented_transitions:
-                    t_action_idx = t_action[0] * 9 + t_action[1]
-                    self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
+        # if reward > 0.1 or reward < -0.1:
+        #     for i in range(3):
+        #         for (t_state, t_next_state, t_action) in augmented_transitions:
+        #             t_action_idx = t_action[0] * 9 + t_action[1]
+        #             self.memory.push(t_state, t_action_idx, reward, t_next_state, done)
 
 
     def soft_update(self):

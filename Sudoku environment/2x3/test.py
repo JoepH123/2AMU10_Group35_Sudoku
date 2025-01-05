@@ -152,10 +152,10 @@ def test_model(model, num_games=10):
                 env.current_player = -env.current_player  # Switch to opponent
                 continue
 
-            # current_board = env.board.copy()
-            # state = make_state(current_board)
-            # action = select_max_q_action(model_2, state, valid_moves)
-            action = random_opponent_move(env)
+            current_board = env.board.copy()
+            state = make_state(current_board)
+            action = select_max_q_action(model_2, state, valid_moves)
+            #action = random_opponent_move(env)
             #action = select_action_score(env)
             # action = select_action_score_or_mobility(env, player=1)
             reward, done, info = env.step(action)
@@ -206,11 +206,11 @@ def test_model(model, num_games=10):
                 opponent_action = random.choice(best_scoring_moves) 
 
             else:
-                current_board = env.board.copy()
-                state = make_state(current_board, player=-1)
-                opponent_action = select_max_q_action(model, state, valid_moves)
+                # current_board = env.board.copy()
+                # state = make_state(current_board, player=-1)
+                # opponent_action = select_max_q_action(model, state, valid_moves)
                 #opponent_action = select_action_score(env)
-                #opponent_action = random_opponent_move(env)
+                opponent_action = random_opponent_move(env)
                 _, done, info = env.step(opponent_action)
 
             agent_score = info["score"][0]
@@ -237,8 +237,8 @@ def test_model(model, num_games=10):
 
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model(filename='dqn_6x6_random_2_model.pkl') # player 2
-    model_2 = load_model(filename='dqn_6x6_random_2_model.pkl') # player 1
+    model = load_model(filename='dqn_6x6_random_4_model.pkl') # player 2
+    model_2 = load_model(filename='dqn_6x6_random_4_model.pkl') # player 1
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")
