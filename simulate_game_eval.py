@@ -277,7 +277,7 @@ def main():
     if args.check:
         check_oracle()
     else:
-        if args.board == "board/board-3x3-random_start.txt":
+        if args.board == "boards/board-3x3-random_start.txt":
             # Proper command for this: 
             # python simulate_game_eval.py --board="boards/board-3x3-random_start.txt" --time=0.5 --first=team35_A2 --second=stijn_player
             generate_board()  # Create board with one randomly filled out value in starting region
