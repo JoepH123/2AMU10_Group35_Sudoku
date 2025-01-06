@@ -1,21 +1,3 @@
-import copy
-
-def calculate_mobility(node) -> float:
-    """
-    Calculate the mobility score for the current node.
-
-    Parameters:
-    node (Node): The current game state.
-
-    Returns:
-    float: The mobility score, representing the number of available moves normalized by board size.
-    """
-    N = node.board.N
-    if node.my_player == node.current_player:  # If it is our turn
-        return len(node.player_squares()) / N
-    else:  # If it is not our turn
-        return len(node.other_player_squares()) / N
-
 def unique_controlled_squares(node):
     N = node.board.N
     current_player_control_squares = node.player_squares()

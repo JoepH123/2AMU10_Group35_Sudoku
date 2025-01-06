@@ -164,37 +164,38 @@ def test_model(model, num_games=10):
                 continue
             
             valid_moves = env.get_all_moves()
-            max_reward = 0.1
-            best_scoring_moves = []
+            # max_reward = 0.1
+            # best_scoring_moves = []
 
             env_copy_opp = env.clone()
             env_copy_opp.current_player = -env_copy_opp.current_player
-            opp_valide_moves = env_copy_opp.get_all_moves()
+            #opp_valide_moves = env_copy_opp.get_all_moves()
 
-            for move in valid_moves:
-                # Maak een kopie van de staat om te simuleren
-                if move in opp_valide_moves:
-                    state_copy = env.clone()
-                    reward, done, _ = state_copy.step(move)
+            # for move in valid_moves:
+            #     # Maak een kopie van de staat om te simuleren
+            #     if move in opp_valide_moves:
+            #         state_copy = env.clone()
+            #         reward, done, _ = state_copy.step(move)
 
-                    if reward > max_reward:
-                        max_reward = reward
-                        best_scoring_moves = [move]
-                    elif reward == max_reward:
-                        best_scoring_moves.append(move)
-                else:
-                    continue
+            #         if reward > max_reward:
+            #             max_reward = reward
+            #             best_scoring_moves = [move]
+            #         elif reward == max_reward:
+            #             best_scoring_moves.append(move)
+            #     else:
+            #         continue
 
-            if best_scoring_moves:
-                opponent_action = random.choice(best_scoring_moves) 
+            # if best_scoring_moves:
+            #     opponent_action = random.choice(best_scoring_moves) 
 
-            else:
-                # current_board = env.board.copy()
-                # state = make_state(current_board, player=-1)
-                # opponent_action = select_max_q_action(model, state, valid_moves)
-                #opponent_action = select_action_score(env)
-                opponent_action = random_opponent_move(env)
-                _, done, info = env.step(opponent_action)
+            # else:
+            # current_board = env.board.copy()
+            # state = make_state(current_board, player=-1)
+            # opponent_action = select_max_q_action(model, state, valid_moves)
+            #opponent_action = select_action_score(env)
+            opponent_action = select_action_score_or_mobility(env)
+            #opponent_action = random_opponent_move(env)
+            _, done, info = env.step(opponent_action)
 
             agent_score = info["score"][0]
             opponent_score = info["score"][1]
@@ -272,8 +273,8 @@ def test_model(model, num_games=10):
 
 if __name__ == "__main__":
     start_time = time.time()  # Start de timer
-    model = load_model(filename='9x9_greedy_3_best_dqn_model.pkl') # player 2
-    model_2 = load_model(filename='9x9_greedy_3_best_dqn_model.pkl') # player 1
+    model = load_model(filename='dqn_model.pkl') # player 2
+    model_2 = load_model(filename='dqn_model.pkl') # player 1
     end_time = time.time()  # Stop de timer
     load_duration = end_time - start_time
     print(f"Model loading time: {load_duration:.4f} seconds")
