@@ -149,7 +149,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         # Retrieve all possible moves for the current state
         all_moves = self.get_all_moves(root_node)
 
-        if (game_state.board.n, game_state.board.m) == (3,3): #and sum(1 for square in game_state.board.squares if square != 0) <= 0.6 * len(game_state.board.squares) : # maybe add (and total moves < ...)
+        if (game_state.board.n, game_state.board.m) == (3,3): 
             print('loading dqn model for 9x9 board')
             model = self.load_model(filename='team35_9x9_dqn_model.pkl')
             squares = [move.square for move in all_moves]
