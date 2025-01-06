@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import numpy as np
-from .dqn import CNNQNetwork
+from .dqn import CNNQNetwork, CNNQNetwork_6x6
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .evaluation_functions import evaluate_node, calculate_mobility, calculate_score_difference
@@ -286,7 +286,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return min_eval
 
 
-    def load_model(self, filename="dqn_model_2x2.pkl"):
+    def load_model(self, filename="dqn_model_2x2.pkl", input_shape=(9,9), num_actions=81):
         """Load the trained model from the 'models' folder in the same directory."""
         script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
         models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
@@ -297,16 +297,20 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             data = pickle.load(f)
 
         # Pas de input_shape en num_actions aan overeenkomstig je nieuwe architectuur
-        model = CNNQNetwork(input_shape=(9, 9), num_actions=81)
+        if input_shape == (9,9):
+            model = CNNQNetwork(input_shape, num_actions)
+        elif input_shape == (6,6):
+            model = CNNQNetwork_6x6(input_shape, num_actions)
+
         model.load_state_dict(data["policy_state_dict"])
         model.eval()
         print(f"Model loaded from {file_path}")
         return model
     
 
-    def preprocess_board(self, original_board):
+    def preprocess_board(self, original_board, shape=(9,9)):
         # Convert squares to a 9x9 numpy array
-        board_array = np.array(original_board.squares).reshape((9, 9))
+        board_array = np.array(original_board.squares).reshape(shape)
 
         # Mark squares owned by player 1 as 1
         board_array[board_array > 0] = 1
@@ -319,17 +323,16 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
 
     def make_state(self, board, player=1):
-        # Here board is now shape (9, 9)
-        p1_channel = (board == player).astype(np.float32)   # shape (9,9)
-        p2_channel = (board == -player).astype(np.float32)  # shape (9,9)
-        empty_channel = (board == 0).astype(np.float32)     # shape (9,9)
+
+        p1_channel = (board == player).astype(np.float32)   
+        p2_channel = (board == -player).astype(np.float32)  
+        empty_channel = (board == 0).astype(np.float32)     
         
-        # Now stack -> shape (3, 9, 9)
         state = np.stack([p1_channel, p2_channel, empty_channel], axis=0)
         return state
 
 
-    def select_max_q_action(self, model, state, valid_moves):
+    def select_max_q_action(self, model, state, valid_moves, N=9):
         """Select the action with the highest Q-value for a 9x9 board."""
         state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, 3, 9, 9)
         with torch.no_grad():
@@ -338,11 +341,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         # Mask invalid moves
         q_values_masked = np.full_like(q_values, -1e9)
         for r, c in valid_moves:
-            action_idx = r * 9 + c  # Updated for 9x9
+            action_idx = r * N + c  # Updated for 9x9
             q_values_masked[action_idx] = q_values[action_idx]
         
         best_action_idx = np.argmax(q_values_masked)
-        return best_action_idx // 9, best_action_idx % 9  # Updated for 9x9
+        return best_action_idx // N, best_action_idx % N  # Updated for 9x9
 
 
     def compute_best_move(self, game_state: GameState) -> None:
@@ -368,9 +371,9 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         print(game_state.board.n, game_state.board.m)
 
-        if (game_state.board.n, game_state.board.m) == (3,3) and sum(1 for square in game_state.board.squares if square != 0) <= 0.6 * len(game_state.board.squares) : # maybe add (and total moves < ...)
+        if (game_state.board.n, game_state.board.m) == (3,3): #and sum(1 for square in game_state.board.squares if square != 0) <= 0.6 * len(game_state.board.squares) : # maybe add (and total moves < ...)
             print('loading dqn model for 9x9 board')
-            model = self.load_model(filename='team35_dqn_model.pkl')
+            model = self.load_model(filename='team35_9x9_dqn_model.pkl')
             squares = [move.square for move in all_moves]
             current_board = self.preprocess_board(copy.deepcopy(game_state.board))
             state = self.make_state(current_board, player=root_node.my_player)
@@ -378,44 +381,14 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             self.propose_move(Move(action, root_node.solved_board_dict[action]))
             return
         
-    
-        elif ((game_state.board.n, game_state.board.m) == (2, 3) or (game_state.board.n, game_state.board.m) == (2, 2)) and (root_node.my_player == 2): #2,2 werkt nog niet
-            all_moves = self.get_all_moves(root_node)
-            last_move = root_node.last_move
-
-            if last_move is not None:
-                (r_p1, c_p1) = last_move.square
-                val_p1 = last_move.value  # P1's digit
-                N = root_node.board.N  # Total board size
-                print(N)
-
-                # Horizontale spiegeling
-                horiz_r = (N - 1) - r_p1
-                horiz_c = c_p1
-                horiz_sq = (horiz_r, horiz_c)
-
-                if horiz_sq in [move.square for move in all_moves]:
-                    # Probeer een waarde die de tegenstander al eerder heeft gespeeld
-                    opponent_values = {move.value for move in root_node.moves if move.player == 1}
-
-                    # Check of een waarde van de tegenstander gebruikt kan worden
-                    for opp_value in opponent_values:
-                        test_board = copy.deepcopy(root_node.board)
-                        test_board.put(horiz_sq, opp_value)
-                        solver = SudokuSolver(test_board.squares, test_board.N, test_board.m, test_board.n)
-
-                        if solver.is_solvable():
-                            self.propose_move(Move(horiz_sq, opp_value))
-                            return
-
-                    # Als geen waarde van de tegenstander mogelijk is, gebruik een veilige waarde
-                    if horiz_sq in root_node.solved_board_dict:
-                        safe_value = root_node.solved_board_dict[horiz_sq][0]  # Neem de eerste veilige waarde
-                        self.propose_move(Move(horiz_sq, safe_value))
-                        return
-
-            # Als geen spiegeling mogelijk is, kies een willekeurige geldige zet
-            self.propose_move(random.choice(all_moves))
+        elif (game_state.board.n, game_state.board.m) == (3, 2):
+            print('loading dqn model for 6x6 board')
+            model = self.load_model(filename='team35_6x6_dqn_model.pkl', input_shape=(6,6), num_actions=36)
+            squares = [move.square for move in all_moves]
+            current_board = self.preprocess_board(copy.deepcopy(game_state.board), shape=(6,6))
+            state = self.make_state(current_board, player=root_node.my_player)
+            action = self.select_max_q_action(model, state, squares, N=6)
+            self.propose_move(Move(action, root_node.solved_board_dict[action]))
             return
 
         else:
