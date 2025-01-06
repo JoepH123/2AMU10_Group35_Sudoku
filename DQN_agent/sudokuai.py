@@ -65,7 +65,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     # --- 1) Nieuwe functie: ONNX-model laden zonder PyTorch ---
     def load_onnx_model(self, filename="team35_9x9_dqn_model.onnx"):
         """
-        Laadt een ONNX-model via onnxruntime.
+        Loads a ONNX-model via onnxruntime.
         """
         script_dir = os.path.dirname(os.path.abspath(__file__))
         models_dir = os.path.join(script_dir, "models")
@@ -73,7 +73,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         # Initialiseer een onnxruntime sessie (CPU-only)
         session = ort.InferenceSession(file_path, providers=["CPUExecutionProvider"])
-        print(f"ONNX-model geladen vanaf {file_path}")
+        print(f"ONNX-model loaded from {file_path}")
         return session
 
     def preprocess_board(self, original_board, shape=(9,9)):
@@ -83,10 +83,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
     def make_state(self, board, player=1):
         """
-        Maak een 3-kanaals representatie:
-          kanaal 0 = cellen van speler 'player' (1 of -1 in original)
-          kanaal 1 = cellen van tegenstander
-          kanaal 2 = lege cellen
+        Making a 3-channel representation:
+          kanaal 0 = player cells
+          kanaal 1 = oppponent cells
+          kanaal 2 = empty cells
         """
         p1_channel = (board == player).astype(np.float32)
         p2_channel = (board == -player).astype(np.float32)
@@ -98,11 +98,11 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     # --- 2) Actieselectie met ONNX-runtime ---
     def select_max_q_action(self, onnx_session, state, valid_moves, N=9):
         """
-        Berekent de Q-values via onnxruntime en kiest de beste geldige move.
+        Calculates Q-values via onnxruntime and chooses best legal move.
         - onnx_session: onnxruntime.InferenceSession
         - state: numpy-array shape (3,9,9)
-        - valid_moves: lijst met (r,c) zetten
-        - N: 9 (of 6 bij een 6x6)
+        - valid_moves: list with (r,c) moves
+        - N: 9 (or 6 for 6x6)
         """
         # onnxruntime verwacht (batch_size, 3, 9, 9) -> dus voeg batch-dim toe
         input_data = state[np.newaxis, :].astype(np.float32)  # shape (1,3,9,9)
