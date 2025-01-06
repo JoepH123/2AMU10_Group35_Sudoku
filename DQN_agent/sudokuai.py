@@ -5,26 +5,22 @@
 import random
 import time
 import copy
-import pickle
-start_time = time.time()
-import torch
-elapsed_time = time.time() - start_time
-print(f"Model loading time: {elapsed_time:.4f} seconds")
-torch.set_num_threads(1) 
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 import sys
-from joblib import load
+
+# onnx-runtime
+import onnxruntime as ort
+import numpy as np
 
 # Add to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import numpy as np
-from .dqn import CNNQNetwork, CNNQNetwork_6x6
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
 from .sudoku_solver import SudokuSolver
+
 
 class NodeGameState(GameState):
     def __init__(self, game_state, root_move=None, last_move=None, my_player=None):
@@ -48,7 +44,6 @@ class NodeGameState(GameState):
 
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
-
     def __init__(self):
         """Initialize the SudokuAI by calling the superclass initializer."""
         super().__init__()
@@ -67,135 +62,107 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         all_moves = [Move(coordinates, node.solved_board_dict[coordinates]) for coordinates in player_squares]
         return all_moves
 
-
-    # def load_model(self, filename="dqn_model_2x2.pkl", input_shape=(9,9), num_actions=81):
-    #     """Load the trained model from the 'models' folder in the same directory."""
-    #     script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
-    #     models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
-    #     file_path = os.path.join(models_dir, filename)  # Volledige pad naar modelbestand
-
-    #     # Model laden
-    #     with open(file_path, "rb") as f:
-    #         data = pickle.load(f)
-
-
-    #     if input_shape == (9,9):
-    #         model = CNNQNetwork(input_shape, num_actions)
-    #     elif input_shape == (6,6):
-    #         model = CNNQNetwork_6x6(input_shape, num_actions)
-
-    #     model.load_state_dict(data["policy_state_dict"])
-    #     model.eval()
-    #     print(f"Model loaded from {file_path}")
-    #     return model
-    
-
-    def load_model(self, filename="team35_9x9_dqn_model.pkl"):
-        """Load the trained model from the 'models' folder in the same directory."""
+    # --- 1) Nieuwe functie: ONNX-model laden zonder PyTorch ---
+    def load_onnx_model(self, filename="team35_9x9_dqn_model.onnx"):
+        """
+        Laadt een ONNX-model via onnxruntime.
+        """
         script_dir = os.path.dirname(os.path.abspath(__file__))
         models_dir = os.path.join(script_dir, "models")
         file_path = os.path.join(models_dir, filename)
-        
-        # load model
-        model_data = load(file_path)  # Sneller dan pickle.load
-        model = CNNQNetwork()
-        model.load_state_dict(model_data["policy_state_dict"])
-        model.eval()
-        return model
-    
+
+        # Initialiseer een onnxruntime sessie (CPU-only)
+        session = ort.InferenceSession(file_path, providers=["CPUExecutionProvider"])
+        print(f"ONNX-model geladen vanaf {file_path}")
+        return session
 
     def preprocess_board(self, original_board, shape=(9,9)):
         board_array = np.asarray(original_board.squares).reshape(shape)
         board_array = np.where(board_array > 0, 1, np.where(board_array < 0, -1, 0))
-
         return board_array
 
-
     def make_state(self, board, player=1):
-        p1_channel = (board == player).astype(np.float32)   
-        p2_channel = (board == -player).astype(np.float32)  
-        empty_channel = (board == 0).astype(np.float32)     
-        
-        state = np.stack([p1_channel, p2_channel, empty_channel], axis=0)
+        """
+        Maak een 3-kanaals representatie:
+          kanaal 0 = cellen van speler 'player' (1 of -1 in original)
+          kanaal 1 = cellen van tegenstander
+          kanaal 2 = lege cellen
+        """
+        p1_channel = (board == player).astype(np.float32)
+        p2_channel = (board == -player).astype(np.float32)
+        empty_channel = (board == 0).astype(np.float32)
+
+        state = np.stack([p1_channel, p2_channel, empty_channel], axis=0)  # shape (3,9,9)
         return state
 
+    # --- 2) Actieselectie met ONNX-runtime ---
+    def select_max_q_action(self, onnx_session, state, valid_moves, N=9):
+        """
+        Berekent de Q-values via onnxruntime en kiest de beste geldige move.
+        - onnx_session: onnxruntime.InferenceSession
+        - state: numpy-array shape (3,9,9)
+        - valid_moves: lijst met (r,c) zetten
+        - N: 9 (of 6 bij een 6x6)
+        """
+        # onnxruntime verwacht (batch_size, 3, 9, 9) -> dus voeg batch-dim toe
+        input_data = state[np.newaxis, :].astype(np.float32)  # shape (1,3,9,9)
 
-    # def select_max_q_action(self, model, state, valid_moves, N=9):
-    #     """Select the action with the highest Q-value for a 9x9 board."""
-    #     state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, 3, 9, 9)
-    #     with torch.no_grad():
-    #         q_values = model(state_t).squeeze(0).numpy()  # (81,)
-        
-    #     # Mask invalid moves
-    #     q_values_masked = np.full_like(q_values, -1e9)
-    #     for r, c in valid_moves:
-    #         action_idx = r * N + c  # Updated for 9x9
-    #         q_values_masked[action_idx] = q_values[action_idx]
-        
-    #     best_action_idx = np.argmax(q_values_masked)
-    #     return best_action_idx // N, best_action_idx % N  # Updated for 9x9
-    
+        # Haal input en output-namen op uit het ONNX-model
+        input_name = onnx_session.get_inputs()[0].name
+        output_name = onnx_session.get_outputs()[0].name
 
-    def select_max_q_action(self, model, state, valid_moves, N=9):
-        """Select the action with the highest Q-value for a 9x9 board."""
-        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # (1, 3, 9, 9)
-        with torch.no_grad():
-            q_values = model(state_t).squeeze(0).numpy()  # (81,)
+        # Run inference
+        outputs = onnx_session.run([output_name], {input_name: input_data})
+        # outputs[0] is shape (1,81)
+        q_values = outputs[0].squeeze(0)  # nu shape (81,)
 
-        # mask invalid moves
+        # Mask invalid moves
         mask = np.full(q_values.shape, -1e9, dtype=np.float32)
-        for r, c in valid_moves:
+        for (r, c) in valid_moves:
             action_idx = r * N + c
             mask[action_idx] = q_values[action_idx]
 
-        best_action_idx = mask.argmax()  # select best move
-        return best_action_idx // N, best_action_idx % N # convert index to actual move
+        best_action_idx = mask.argmax()
+        return best_action_idx // N, best_action_idx % N
 
-
-
+    # --- 3) compute_best_move met ONNX ---
     def compute_best_move(self, game_state: GameState) -> None:
-        """
-        Compute and propose the best move for the current game state using iterative deepening and minimax algorithm.
-
-        Parameters:
-            game_state (GameState): The current state of the game.
-
-        Returns:
-            None: Proposes the best move directly using self.propose_move.
-        """
-
         # Initialize the root node for the game state
         root_node = NodeGameState(game_state)
         root_node.my_player = root_node.current_player
 
-        # Reset the nodes explored counter for this computation
-        self.nodes_explored = 0
-
-        # Retrieve all possible moves for the current state
+        # Retrieve all possible moves
         all_moves = self.get_all_moves(root_node)
+        squares = [move.square for move in all_moves]
 
-        if (game_state.board.n, game_state.board.m) == (3,3): 
-            print('loading dqn model for 9x9 board')
-            model = self.load_model(filename='team35_9x9_dqn_model.pkl')
-            squares = [move.square for move in all_moves]
-            current_board = self.preprocess_board(game_state.board)
+        if (game_state.board.n, game_state.board.m) == (3,3):
+            print("Loading ONNX model for 9x9 board")
+            # 1. Laad ONNX-sessie
+            onnx_session = self.load_onnx_model(filename="team35_9x9_dqn_model.onnx")
+
+            # 2. Preprocess board
+            current_board = self.preprocess_board(game_state.board, shape=(9,9))
             state = self.make_state(current_board, player=root_node.my_player)
-            action = self.select_max_q_action(model, state, squares)
+
+            # 3. Kies beste zet
+            action = self.select_max_q_action(onnx_session, state, squares, N=9)
+
+            # 4. Propose move
             self.propose_move(Move(action, root_node.solved_board_dict[action]))
             return
-        
-        elif (game_state.board.n, game_state.board.m) == (3, 2):
-            print('loading dqn model for 6x6 board')
-            model = self.load_model(filename='team35_6x6_dqn_model.pkl', input_shape=(6,6), num_actions=36)
-            squares = [move.square for move in all_moves]
+
+        elif (game_state.board.n, game_state.board.m) == (3,2):
+            print("Loading ONNX model for 6x6 board")
+            onnx_session = self.load_onnx_model(filename="team35_6x6_dqn_model.onnx")
+
             current_board = self.preprocess_board(game_state.board, shape=(6,6))
             state = self.make_state(current_board, player=root_node.my_player)
-            action = self.select_max_q_action(model, state, squares, N=6)
+
+            action = self.select_max_q_action(onnx_session, state, squares, N=6)
             self.propose_move(Move(action, root_node.solved_board_dict[action]))
             return
-
         else:
-            # Randomly propose a move initially to ensure there's always a fallback
+            # Fallback: random move
             self.propose_move(random.choice(all_moves))
 
 
