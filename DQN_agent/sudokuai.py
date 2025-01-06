@@ -7,6 +7,7 @@ import time
 import copy
 import pickle
 import torch
+torch.set_num_threads(1) 
 import os
 import sys
 
@@ -91,7 +92,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
     def preprocess_board(self, original_board, shape=(9,9)):
         # Convert squares to a 9x9 numpy array
-        board_array = np.array(original_board.squares).reshape(shape)
+        squares = original_board.squares.copy()
+        board_array = np.array(squares).reshape(shape)
 
         # Mark squares owned by player 1 as 1
         board_array[board_array > 0] = 1
@@ -153,7 +155,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             print('loading dqn model for 9x9 board')
             model = self.load_model(filename='team35_9x9_dqn_model.pkl')
             squares = [move.square for move in all_moves]
-            current_board = self.preprocess_board(copy.deepcopy(game_state.board))
+            current_board = self.preprocess_board(game_state.board)
             state = self.make_state(current_board, player=root_node.my_player)
             action = self.select_max_q_action(model, state, squares)
             self.propose_move(Move(action, root_node.solved_board_dict[action]))
@@ -163,7 +165,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             print('loading dqn model for 6x6 board')
             model = self.load_model(filename='team35_6x6_dqn_model.pkl', input_shape=(6,6), num_actions=36)
             squares = [move.square for move in all_moves]
-            current_board = self.preprocess_board(copy.deepcopy(game_state.board), shape=(6,6))
+            current_board = self.preprocess_board(game_state.board, shape=(6,6))
             state = self.make_state(current_board, player=root_node.my_player)
             action = self.select_max_q_action(model, state, squares, N=6)
             self.propose_move(Move(action, root_node.solved_board_dict[action]))
