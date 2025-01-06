@@ -6,7 +6,7 @@ import random
 import copy
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
-from .evaluation_functions import evaluate_node, calculate_mobility, calculate_score_difference
+from .evaluation_functions import evaluate_node
 from .sudoku_solver import SudokuSolver
 from .hard_coded_moves import get_heuristic_moves
 
@@ -254,7 +254,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 alpha = max(alpha, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha and node.game_phase != 'late':
+                if beta <= alpha:
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
@@ -282,7 +282,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 beta = min(beta, eval_score)
 
                 # Perform alpha-beta pruning if applicable
-                if beta <= alpha and node.game_phase != 'late':
+                if beta <= alpha:
                     # Add the move to the killer moves list if not already present
                     if move not in self.killer_moves[depth] and type(move)!=str:
                         if len(self.killer_moves[depth]) >= 2:  # Maintain at most two killer moves
