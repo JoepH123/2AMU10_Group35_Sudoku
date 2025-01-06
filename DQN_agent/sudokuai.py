@@ -6,10 +6,16 @@ import random
 import time
 import copy
 import pickle
+start_time = time.time()
 import torch
+elapsed_time = time.time() - start_time
+print(f"Model loading time: {elapsed_time:.4f} seconds")
 torch.set_num_threads(1) 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 import sys
+from joblib import load
 
 # Add to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -40,12 +46,6 @@ class NodeGameState(GameState):
         solved_board_dict = solver.get_board_as_dict()
         self.solved_board_dict = solved_board_dict
 
-    def hash_key(self):
-        """
-        Generate a unique hash key for this node.
-        """
-        return hash((tuple(self.occupied_squares1), tuple(self.occupied_squares2), tuple(self.scores), self.current_player))
-
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
@@ -68,40 +68,46 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return all_moves
 
 
-    def load_model(self, filename="dqn_model_2x2.pkl", input_shape=(9,9), num_actions=81):
+    # def load_model(self, filename="dqn_model_2x2.pkl", input_shape=(9,9), num_actions=81):
+    #     """Load the trained model from the 'models' folder in the same directory."""
+    #     script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
+    #     models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
+    #     file_path = os.path.join(models_dir, filename)  # Volledige pad naar modelbestand
+
+    #     # Model laden
+    #     with open(file_path, "rb") as f:
+    #         data = pickle.load(f)
+
+
+    #     if input_shape == (9,9):
+    #         model = CNNQNetwork(input_shape, num_actions)
+    #     elif input_shape == (6,6):
+    #         model = CNNQNetwork_6x6(input_shape, num_actions)
+
+    #     model.load_state_dict(data["policy_state_dict"])
+    #     model.eval()
+    #     print(f"Model loaded from {file_path}")
+    #     return model
+    
+
+    def load_model(self, filename="team35_9x9_dqn_model.pkl"):
         """Load the trained model from the 'models' folder in the same directory."""
-        script_dir = os.path.dirname(os.path.abspath(__file__))  # Map van dit script
-        models_dir = os.path.join(script_dir, "models")  # Pad naar 'models' map
-        file_path = os.path.join(models_dir, filename)  # Volledige pad naar modelbestand
-
-        # Model laden
-        with open(file_path, "rb") as f:
-            data = pickle.load(f)
-
-        # Pas de input_shape en num_actions aan overeenkomstig je nieuwe architectuur
-        if input_shape == (9,9):
-            model = CNNQNetwork(input_shape, num_actions)
-        elif input_shape == (6,6):
-            model = CNNQNetwork_6x6(input_shape, num_actions)
-
-        model.load_state_dict(data["policy_state_dict"])
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        models_dir = os.path.join(script_dir, "models")
+        file_path = os.path.join(models_dir, filename)
+        
+        # load model
+        model_data = load(file_path)  # Sneller dan pickle.load
+        model = CNNQNetwork()
+        model.load_state_dict(model_data["policy_state_dict"])
         model.eval()
-        print(f"Model loaded from {file_path}")
         return model
     
 
     def preprocess_board(self, original_board, shape=(9,9)):
-        # Convert squares to a 9x9 numpy array
-        squares = original_board.squares.copy()
-        board_array = np.array(squares).reshape(shape)
+        board_array = np.asarray(original_board.squares).reshape(shape)
+        board_array = np.where(board_array > 0, 1, np.where(board_array < 0, -1, 0))
 
-        # Mark squares owned by player 1 as 1
-        board_array[board_array > 0] = 1
-
-        # Mark squares owned by player 2 as -1
-        board_array[board_array < 0] = -1
-
-        # Zeros remain 0 (empty)
         return board_array
 
 
@@ -114,20 +120,37 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         return state
 
 
+    # def select_max_q_action(self, model, state, valid_moves, N=9):
+    #     """Select the action with the highest Q-value for a 9x9 board."""
+    #     state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, 3, 9, 9)
+    #     with torch.no_grad():
+    #         q_values = model(state_t).squeeze(0).numpy()  # (81,)
+        
+    #     # Mask invalid moves
+    #     q_values_masked = np.full_like(q_values, -1e9)
+    #     for r, c in valid_moves:
+    #         action_idx = r * N + c  # Updated for 9x9
+    #         q_values_masked[action_idx] = q_values[action_idx]
+        
+    #     best_action_idx = np.argmax(q_values_masked)
+    #     return best_action_idx // N, best_action_idx % N  # Updated for 9x9
+    
+
     def select_max_q_action(self, model, state, valid_moves, N=9):
         """Select the action with the highest Q-value for a 9x9 board."""
-        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # (1, 3, 9, 9)
+        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)  # (1, 3, 9, 9)
         with torch.no_grad():
             q_values = model(state_t).squeeze(0).numpy()  # (81,)
-        
-        # Mask invalid moves
-        q_values_masked = np.full_like(q_values, -1e9)
+
+        # mask invalid moves
+        mask = np.full(q_values.shape, -1e9, dtype=np.float32)
         for r, c in valid_moves:
-            action_idx = r * N + c  # Updated for 9x9
-            q_values_masked[action_idx] = q_values[action_idx]
-        
-        best_action_idx = np.argmax(q_values_masked)
-        return best_action_idx // N, best_action_idx % N  # Updated for 9x9
+            action_idx = r * N + c
+            mask[action_idx] = q_values[action_idx]
+
+        best_action_idx = mask.argmax()  # select best move
+        return best_action_idx // N, best_action_idx % N # convert index to actual move
+
 
 
     def compute_best_move(self, game_state: GameState) -> None:
@@ -174,4 +197,5 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         else:
             # Randomly propose a move initially to ensure there's always a fallback
             self.propose_move(random.choice(all_moves))
+
 
