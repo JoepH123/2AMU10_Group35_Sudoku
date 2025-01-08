@@ -6,7 +6,14 @@
   <component name="ChangeListManager">
     <list default="true" id="677bae09-3ab8-4d56-bab2-d8b04246a4a9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Sudokuvisualizer.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/Sudokuvisualizer.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A1/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A1/evaluate_functions.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A1/sudokuai.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A2/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A2/evaluation_functions.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A2/hard_coded_moves.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A2/sudoku_solver.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deliverables/team35_A2/sudokuai.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,15 +39,16 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/20203666/Documents/GitHub/2AMU10_Group35_Sudoku/MCT_player&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/20203666/Documents/GitHub/2AMU10_Group35_Sudoku/team35_A2+"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\20203666\Documents\GitHub\2AMU10_Group35_Sudoku\team35_A2+" />
       <recent name="C:\Users\20203666\Documents\GitHub\2AMU10_Group35_Sudoku\MCT_player" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
