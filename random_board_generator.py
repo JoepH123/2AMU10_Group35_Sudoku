@@ -9,7 +9,8 @@ def generate_board():
     - A random integer between 1 and 9 is placed in the top row with a '+' sign.
     - A different random integer between 1 and 9 is placed in the bottom row with a '-' sign.
     - The first three columns (indices 0 to 2) cannot be selected for placing values.
-    - Given that both values are placed in the same column, the top and bottom values must differ. This way the sudoku remains solvable. 
+    - Given that both values are placed in the same column, the top and bottom values must differ. 
+      This way the sudoku remains solvable. 
     - The generated board is saved to 'boards/board-3x3-random_start.txt'.
 
     Outputs:
@@ -31,7 +32,8 @@ def generate_board():
     top_value = random.randint(1, 9)
     bottom_value = random.randint(1, 9)
 
-    # Make sure that if both starting numbers are in the same column, the values are not the same. This way the sudoku remains solvable. 
+    # Make sure that if both starting numbers are in the same column, the values are not the same. 
+    # This way the sudoku remains solvable. 
     if top_column == bottom_column:
         while top_value == bottom_value:
             bottom_value = random.randint(1, 9)
